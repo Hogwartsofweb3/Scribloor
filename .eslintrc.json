@@ -1,0 +1,8 @@
+{
+  "root": true,
+  "ignorePatterns": ["apps/**", "packages/**"],
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": "latest"
+  }
+}
