@@ -16,7 +16,7 @@ import {
 // Enums
 export const roleEnum = pgEnum('role', ['reader', 'creator', 'admin']);
 export const postStatusEnum = pgEnum('post_status', ['draft', 'published', 'scheduled']);
-export const subscriptionStatusEnum = pgEnum('subscription_status', ['active', 'expired', 'cancelled']);
+export const subscriptionStatusEnum = pgEnum('subscription_status', ['pending', 'active', 'expired', 'cancelled']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'confirmed', 'failed']);
 export const emailStatusEnum = pgEnum('email_status', ['sent', 'bounced', 'opened']);
 
