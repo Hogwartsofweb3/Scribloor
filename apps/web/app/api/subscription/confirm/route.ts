@@ -3,15 +3,18 @@ import type { NextRequest } from 'next/server';
 import { getServerUser } from '@/lib/auth/privy';
 import { db, subscriptions, transactions, users } from '@solscribe/db';
 import { eq, and } from 'drizzle-orm';
-import { getConnection } from '@/lib/solana/connection';
-import { verifySubscriptionTx } from '@/lib/solana/verify';
-import { PLATFORM_FEE_BPS } from '@/lib/solana/constants';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/subscription/confirm
  * Body: { txSignature: string, subscriptionId: string }
  *
- * Verifies the on-chain transaction, then marks the subscription as active.
+ * Called by the client immediately after the user signs and submits the tx.
+ * Updates the transaction record with the real signature so the Helius webhook
+ * can find and verify it. Returns { status: 'pending_confirmation' }.
+ *
+ * The webhook at /api/webhooks/helius handles the final activation.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,22 +36,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch DB user
+    // Resolve DB user
     const dbUser = await db.query.users.findFirst({
       where: eq(users.privyId, privyUser.id),
     });
-
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Fetch the pending subscription with its publication
+    // Verify subscription belongs to this user and is pending
     const subscription = await db.query.subscriptions.findFirst({
       where: and(
         eq(subscriptions.id, subscriptionId),
         eq(subscriptions.subscriberId, dbUser.id)
       ),
-      with: { publication: true },
     });
 
     if (!subscription) {
@@ -57,56 +58,35 @@ export async function POST(request: NextRequest) {
 
     if (subscription.status !== 'pending') {
       return NextResponse.json(
-        { error: 'Subscription is not in a pending state' },
+        { error: `Subscription is not pending (current status: ${subscription.status})` },
         { status: 409 }
       );
     }
 
-    const totalAmount = Number(subscription.publication.monthlyPriceUsdc ?? 0);
-    const feeAmount = (totalAmount * PLATFORM_FEE_BPS) / 10_000;
-    const creatorAmount = totalAmount - feeAmount;
-
-    // Verify the on-chain transaction
-    const connection = getConnection();
-    const { valid, actualAmount, error: verifyError } = await verifySubscriptionTx({
-      txSignature,
-      expectedCreatorWallet: subscription.publication.payoutWallet,
-      expectedAmountUsdc: creatorAmount,
-      connection,
+    // Check for signature collision (replay protection)
+    const existingBySignature = await db.query.transactions.findFirst({
+      where: eq(transactions.txSignature, txSignature),
     });
-
-    if (!valid) {
+    if (existingBySignature && existingBySignature.subscriptionId !== subscriptionId) {
       return NextResponse.json(
-        { error: `Transaction verification failed: ${verifyError}` },
-        { status: 400 }
+        { error: 'Transaction signature already used by another subscription' },
+        { status: 409 }
       );
     }
 
-    // Derive actual fee from actual amount (maintain same ratio)
-    const actualFeeAmount = (actualAmount * PLATFORM_FEE_BPS) / (10_000 - PLATFORM_FEE_BPS);
+    // Update the pending transaction record with the real signature
+    await db
+      .update(transactions)
+      .set({ txSignature })
+      .where(
+        and(
+          eq(transactions.subscriptionId, subscriptionId),
+          eq(transactions.status, 'pending')
+        )
+      );
 
-    // Record transaction and activate subscription atomically
-    await db.transaction(async (tx) => {
-      await tx.insert(transactions).values({
-        subscriptionId: subscription.id,
-        txSignature,
-        amountUsdc: String(actualAmount + actualFeeAmount),
-        platformFeeUsdc: String(actualFeeAmount),
-        creatorReceivedUsdc: String(actualAmount),
-        status: 'confirmed',
-        confirmedAt: new Date(),
-      });
-
-      await tx
-        .update(subscriptions)
-        .set({
-          status: 'active',
-          lastTxSignature: txSignature,
-        })
-        .where(eq(subscriptions.id, subscriptionId));
-    });
-
-    return NextResponse.json({ success: true, subscriptionId });
+    // The Helius webhook will handle final verification and activation
+    return NextResponse.json({ status: 'pending_confirmation', txSignature });
   } catch (error) {
     console.error('Subscription confirm error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
