@@ -1,14 +1,70 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, posts, publications, users } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getServerUser } from '@/lib/auth/privy';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * GET /api/posts/[id]
+ *
+ * Retrieves a single post for editing (owner only).
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { publicationSlug: string } }
+) {
+  try {
+    const postId = params.publicationSlug;
+
+    // 1. Authenticate user
+    const privyUser = await getServerUser(request);
+    if (!privyUser) {
+      return NextResponse.json({ error: 'Unauthorized: Session not found' }, { status: 401 });
+    }
+
+    // 2. Resolve database user
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.privyId, privyUser.id),
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Unauthorized: User not found in database' }, { status: 401 });
+    }
+
+    // 3. Query post
+    const targetPost = await db.query.posts.findFirst({
+      where: eq(posts.id, postId),
+    });
+
+    if (!targetPost) {
+      return new NextResponse('Post Not Found', { status: 404 });
+    }
+
+    // 4. Verify owner status
+    const publication = await db.query.publications.findFirst({
+      where: eq(publications.id, targetPost.publicationId),
+    });
+
+    if (!publication || publication.ownerId !== dbUser.id) {
+      return new NextResponse('Forbidden: You do not own this publication', { status: 403 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      post: targetPost,
+    });
+  } catch (error) {
+    console.error('Error fetching post for editing:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+}
 
 /**
  * PATCH /api/posts/[id]
  *
- * Saves a draft update for a post if the user owns the publication.
- * Mapped to [publicationSlug] directory to conform to Next.js dynamic routing constraints.
+ * Updates draft or metadata settings for a post (owner only).
  */
 export async function PATCH(
   request: NextRequest,
@@ -20,7 +76,7 @@ export async function PATCH(
     // 1. Authenticate user
     const privyUser = await getServerUser(request);
     if (!privyUser) {
-      return new NextResponse('Unauthorized: No session found', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized: Session not found' }, { status: 401 });
     }
 
     // 2. Resolve database user
@@ -29,7 +85,7 @@ export async function PATCH(
     });
 
     if (!dbUser) {
-      return new NextResponse('Unauthorized: User not registered in database', { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized: User not found in database' }, { status: 401 });
     }
 
     // 3. Resolve target post
@@ -47,35 +103,110 @@ export async function PATCH(
     });
 
     if (!publication || publication.ownerId !== dbUser.id) {
-      return new NextResponse('Unauthorized: You do not own this publication', { status: 401 });
+      return new NextResponse('Forbidden: You do not own this publication', { status: 403 });
     }
 
-    // 5. Parse body parameters
+    // 5. Parse request body parameters
     const body = await request.json();
-    const { content_html, preview_html, status = 'draft' } = body;
+    const {
+      title,
+      subtitle,
+      cover_image_url,
+      content_html,
+      preview_html,
+      is_paywalled,
+      status,
+      scheduled_at,
+    } = body;
 
-    if (typeof content_html !== 'string') {
-      return new NextResponse('Bad Request: content_html is required', { status: 400 });
+    const updateData: any = {};
+
+    if (title !== undefined) updateData.title = title;
+    if (subtitle !== undefined) updateData.subtitle = subtitle || null;
+    if (cover_image_url !== undefined) updateData.coverImageUrl = cover_image_url || null;
+    if (content_html !== undefined) updateData.contentHtml = content_html;
+    if (preview_html !== undefined) updateData.previewHtml = preview_html || null;
+    if (is_paywalled !== undefined) updateData.isPaywalled = is_paywalled;
+    if (status !== undefined) updateData.status = status;
+    if (scheduled_at !== undefined) {
+      updateData.scheduledAt = scheduled_at ? new Date(scheduled_at) : null;
     }
+
+    updateData.updatedAt = new Date();
 
     // 6. Execute update
-    await db
+    const [updatedPost] = await db
       .update(posts)
-      .set({
-        contentHtml: content_html,
-        previewHtml: preview_html || null,
-        status: status,
-        updatedAt: new Date(),
-      })
+      .set(updateData)
+      .where(eq(posts.id, targetPost.id))
+      .returning();
+
+    return NextResponse.json({
+      success: true,
+      post: updatedPost,
+    });
+  } catch (error) {
+    console.error('Error saving post PATCH updates:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/posts/[id]
+ *
+ * Deletes a post draft or published post permanently (owner only).
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { publicationSlug: string } }
+) {
+  try {
+    const postId = params.publicationSlug;
+
+    // 1. Authenticate user
+    const privyUser = await getServerUser(request);
+    if (!privyUser) {
+      return NextResponse.json({ error: 'Unauthorized: Session not found' }, { status: 401 });
+    }
+
+    // 2. Resolve database user
+    const dbUser = await db.query.users.findFirst({
+      where: eq(users.privyId, privyUser.id),
+    });
+
+    if (!dbUser) {
+      return NextResponse.json({ error: 'Unauthorized: User not found in database' }, { status: 401 });
+    }
+
+    // 3. Resolve target post
+    const targetPost = await db.query.posts.findFirst({
+      where: eq(posts.id, postId),
+    });
+
+    if (!targetPost) {
+      return new NextResponse('Post Not Found', { status: 404 });
+    }
+
+    // 4. Verify owner status
+    const publication = await db.query.publications.findFirst({
+      where: eq(publications.id, targetPost.publicationId),
+    });
+
+    if (!publication || publication.ownerId !== dbUser.id) {
+      return new NextResponse('Forbidden: You do not own this publication', { status: 403 });
+    }
+
+    // 5. Execute hard deletion
+    await db
+      .delete(posts)
       .where(eq(posts.id, targetPost.id));
 
     return NextResponse.json({
       success: true,
-      id: targetPost.id,
-      updatedAt: new Date().toISOString(),
+      message: 'Post deleted permanently.',
     });
   } catch (error) {
-    console.error('Error during auto-save PATCH:', error);
+    console.error('Error deleting post:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
