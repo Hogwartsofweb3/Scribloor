@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import SubscribeModal from '@/components/subscribe/SubscribeModal';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,6 +21,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {children}
+          <SubscribeModal />
         </Providers>
       </body>
     </html>
