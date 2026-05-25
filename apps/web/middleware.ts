@@ -17,7 +17,17 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Apply caching headers based on route type
+  if (isProtected || pathname.startsWith('/api/') || pathname === '/login') {
+    response.headers.set('Cache-Control', 'private, no-store');
+  } else if (!pathname.startsWith('/_next/') && pathname !== '/') {
+    // Public publication/post pages
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  }
+
+  return response;
 }
 
 export const config = {
