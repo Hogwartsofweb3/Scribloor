@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { db, pushSubscriptions } from '@solscribe/db';
+import { db, pushSubscriptions, eq, and } from '@solscribe/db';
 import { getServerDbUser } from '@/lib/auth/privy';
-import { eq, and } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {

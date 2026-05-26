@@ -24,6 +24,19 @@ export const vaultEntryStatusEnum = pgEnum('vault_entry_status', ['draft', 'pend
 export const vaultAccessTypeEnum = pgEnum('vault_access_type', ['single_purchase', 'vault_pass']);
 export const vaultPassStatusEnum = pgEnum('vault_pass_status', ['pending', 'active', 'expired', 'cancelled']);
 export const vaultRevenueStatusEnum = pgEnum('vault_revenue_status', ['pending', 'paid']);
+export const milestoneTypeEnum = pgEnum('milestone_type', [
+  'first_subscriber',
+  'subscribers_10',
+  'subscribers_100',
+  'subscribers_1k',
+  'first_usdc',
+  'usdc_100',
+  'usdc_1k',
+  'usdc_10k',
+  'first_vault_entry',
+  'publishing_streak_7',
+  'publishing_streak_30',
+]);
 
 // Tables
 export const users = pgTable(
@@ -38,6 +51,7 @@ export const users = pgTable(
     avatarUrl: text('avatar_url'),
     bio: text('bio'),
     role: roleEnum('role').default('reader').notNull(),
+    isLeaderboardOptIn: boolean('is_leaderboard_opt_in').default(false).notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -117,6 +131,7 @@ export const subscriptions = pgTable(
       .references(() => publications.id),
     subscriberWallet: text('subscriber_wallet').notNull(),
     status: subscriptionStatusEnum('status').notNull(),
+    isSubscriberWallOptOut: boolean('is_subscriber_wall_opt_out').default(false).notNull(),
     startedAt: timestamp('started_at').notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     lastTxSignature: text('last_tx_signature'),
@@ -232,6 +247,69 @@ export const vaultRevenueDistributions = pgTable('vault_revenue_distributions', 
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const creatorMilestones = pgTable(
+  'creator_milestones',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    milestoneType: milestoneTypeEnum('milestone_type').notNull(),
+    achievedAt: timestamp('achieved_at').defaultNow().notNull(),
+    notified: boolean('notified').default(false).notNull(),
+  },
+  (table) => ({
+    userMilestoneUnique: unique('creator_milestones_user_type_unique').on(table.userId, table.milestoneType),
+  })
+);
+
+export const tips = pgTable('tips', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  postId: uuid('post_id').references(() => posts.id, { onDelete: 'set null' }),
+  vaultEntryId: uuid('vault_entry_id').references(() => vaultEntries.id, { onDelete: 'set null' }),
+  publicationId: uuid('publication_id')
+    .notNull()
+    .references(() => publications.id, { onDelete: 'cascade' }),
+  tipperId: uuid('tipper_id')
+    .notNull()
+    .references(() => users.id),
+  recipientId: uuid('recipient_id')
+    .notNull()
+    .references(() => users.id),
+  amountUsdc: numeric('amount_usdc', { precision: 12, scale: 6 }).notNull(),
+  txSignature: text('tx_signature').notNull().unique(),
+  message: text('message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const referrals = pgTable('referrals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  referrerId: uuid('referrer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  referredUserId: uuid('referred_user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  referralCode: text('referral_code').notNull(),
+  converted: boolean('converted').default(false).notNull(),
+  rewardPaid: boolean('reward_paid').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const referralRewards = pgTable('referral_rewards', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  referralId: uuid('referral_id')
+    .notNull()
+    .references(() => referrals.id, { onDelete: 'cascade' }),
+  referrerId: uuid('referrer_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  amountUsdc: numeric('amount_usdc', { precision: 12, scale: 6 }).notNull(),
+  txSignature: text('tx_signature'),
+  status: vaultRevenueStatusEnum('status').default('pending').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   publications: many(publications),
@@ -242,6 +320,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   vaultPassSubscriptions: many(vaultPassSubscriptions),
   vaultRevenueDistributions: many(vaultRevenueDistributions),
   pushSubscriptions: many(pushSubscriptions),
+  creatorMilestones: many(creatorMilestones),
+  tipsSent: many(tips, { relationName: 'tipsSent' }),
+  tipsReceived: many(tips, { relationName: 'tipsReceived' }),
+  referralsMade: many(referrals, { relationName: 'referralsMade' }),
+  referralsReceived: many(referrals, { relationName: 'referralsReceived' }),
 }));
 
 export const publicationsRelations = relations(publications, ({ one, many }) => ({
@@ -251,6 +334,7 @@ export const publicationsRelations = relations(publications, ({ one, many }) => 
   }),
   posts: many(posts),
   subscriptions: many(subscriptions),
+  tips: many(tips),
 }));
 
 export const postsRelations = relations(posts, ({ one, many }) => ({
@@ -259,6 +343,7 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
     references: [publications.id],
   }),
   emailSends: many(emailSends),
+  tips: many(tips),
 }));
 
 export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
@@ -297,6 +382,7 @@ export const vaultEntriesRelations = relations(vaultEntries, ({ one, many }) => 
     references: [users.id],
   }),
   accessRecords: many(vaultAccessRecords),
+  tips: many(tips),
 }));
 
 export const vaultAccessRecordsRelations = relations(vaultAccessRecords, ({ one }) => ({
@@ -320,6 +406,63 @@ export const vaultPassSubscriptionsRelations = relations(vaultPassSubscriptions,
 export const vaultRevenueDistributionsRelations = relations(vaultRevenueDistributions, ({ one }) => ({
   author: one(users, {
     fields: [vaultRevenueDistributions.authorId],
+    references: [users.id],
+  }),
+}));
+
+export const creatorMilestonesRelations = relations(creatorMilestones, ({ one }) => ({
+  user: one(users, {
+    fields: [creatorMilestones.userId],
+    references: [users.id],
+  }),
+}));
+
+export const tipsRelations = relations(tips, ({ one }) => ({
+  tipper: one(users, {
+    fields: [tips.tipperId],
+    references: [users.id],
+    relationName: 'tipsSent',
+  }),
+  recipient: one(users, {
+    fields: [tips.recipientId],
+    references: [users.id],
+    relationName: 'tipsReceived',
+  }),
+  post: one(posts, {
+    fields: [tips.postId],
+    references: [posts.id],
+  }),
+  vaultEntry: one(vaultEntries, {
+    fields: [tips.vaultEntryId],
+    references: [vaultEntries.id],
+  }),
+  publication: one(publications, {
+    fields: [tips.publicationId],
+    references: [publications.id],
+  }),
+}));
+
+export const referralsRelations = relations(referrals, ({ one, many }) => ({
+  referrer: one(users, {
+    fields: [referrals.referrerId],
+    references: [users.id],
+    relationName: 'referralsMade',
+  }),
+  referredUser: one(users, {
+    fields: [referrals.referredUserId],
+    references: [users.id],
+    relationName: 'referralsReceived',
+  }),
+  rewards: many(referralRewards),
+}));
+
+export const referralRewardsRelations = relations(referralRewards, ({ one }) => ({
+  referral: one(referrals, {
+    fields: [referralRewards.referralId],
+    references: [referrals.id],
+  }),
+  referrer: one(users, {
+    fields: [referralRewards.referrerId],
     references: [users.id],
   }),
 }));
@@ -354,6 +497,18 @@ export type NewVaultPassSubscription = typeof vaultPassSubscriptions.$inferInser
 
 export type VaultRevenueDistribution = typeof vaultRevenueDistributions.$inferSelect;
 export type NewVaultRevenueDistribution = typeof vaultRevenueDistributions.$inferInsert;
+
+export type CreatorMilestone = typeof creatorMilestones.$inferSelect;
+export type NewCreatorMilestone = typeof creatorMilestones.$inferInsert;
+
+export type Tip = typeof tips.$inferSelect;
+export type NewTip = typeof tips.$inferInsert;
+
+export type Referral = typeof referrals.$inferSelect;
+export type NewReferral = typeof referrals.$inferInsert;
+
+export type ReferralReward = typeof referralRewards.$inferSelect;
+export type NewReferralReward = typeof referralRewards.$inferInsert;
 
 export const pushSubscriptions = pgTable('push_subscriptions', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db, publications, transactions, posts, vaultEntries } from '@solscribe/db';
-import { sql } from 'drizzle-orm';
+import { db, publications, transactions, posts, vaultEntries, sql } from '@solscribe/db';
 import { redis } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic';

@@ -15,6 +15,13 @@
       "when": 1779814514164,
       "tag": "0001_nasty_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1779816182245,
+      "tag": "0002_gifted_surge",
+      "breakpoints": true
     }
   ]
 }
