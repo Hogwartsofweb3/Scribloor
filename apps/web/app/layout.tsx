@@ -4,6 +4,9 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import SubscribeModal from '@/components/subscribe/SubscribeModal';
 
+import InstallPrompt from '@/components/shared/InstallPrompt';
+import MobileTabBar from '@/components/layout/MobileTabBar';
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const lora = Lora({ subsets: ['latin'], variable: '--font-lora', display: 'swap' });
 
@@ -28,6 +31,22 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Solscribe',
+  },
+  icons: {
+    apple: '/icons/icon-192.png',
+  },
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#534AB7',
 };
 
 export default function RootLayout({
@@ -47,6 +66,8 @@ export default function RootLayout({
         <Providers attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {children}
           <SubscribeModal />
+          <InstallPrompt />
+          <MobileTabBar />
         </Providers>
       </body>
     </html>

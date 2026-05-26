@@ -241,6 +241,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   vaultAccessRecords: many(vaultAccessRecords),
   vaultPassSubscriptions: many(vaultPassSubscriptions),
   vaultRevenueDistributions: many(vaultRevenueDistributions),
+  pushSubscriptions: many(pushSubscriptions),
 }));
 
 export const publicationsRelations = relations(publications, ({ one, many }) => ({
@@ -353,3 +354,24 @@ export type NewVaultPassSubscription = typeof vaultPassSubscriptions.$inferInser
 
 export type VaultRevenueDistribution = typeof vaultRevenueDistributions.$inferSelect;
 export type NewVaultRevenueDistribution = typeof vaultRevenueDistributions.$inferInsert;
+
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.userId],
+    references: [users.id],
+  }),
+}));
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;

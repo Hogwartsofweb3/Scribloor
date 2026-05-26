@@ -99,6 +99,20 @@ export default function EditorialReaderPage() {
     return Math.max(1, Math.ceil(words / 225));
   };
 
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const totalScroll = document.documentElement.scrollTop;
+      const windowHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+      const scroll = `${(totalScroll / windowHeight) * 100}`;
+      setScrollProgress(Number(scroll));
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] p-6 text-zinc-500 select-none">
@@ -123,7 +137,15 @@ export default function EditorialReaderPage() {
     : 'Draft';
 
   return (
-    <article className="flex flex-col min-h-screen">
+    <article className="flex flex-col min-h-screen relative pb-safe">
+      {/* Reading Progress Bar */}
+      <div className="fixed top-0 left-0 right-0 h-1 bg-zinc-900 z-50">
+        <div 
+          className="h-full bg-amber-500 transition-all duration-150 ease-out"
+          style={{ width: `${scrollProgress}%` }}
+        />
+      </div>
+
       {/* Article Schema JSON-LD */}
       <script
         type="application/ld+json"
