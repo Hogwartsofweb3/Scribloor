@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 import { db, posts, publications, subscriptions, emailSends } from '@solscribe/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@solscribe/db';
 
 /**
  * sendPostToSubscribers

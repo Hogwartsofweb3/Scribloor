@@ -6,3 +6,4 @@ const sql = neon(process.env.DATABASE_URL || 'postgres://dummy:dummy@dummy/dummy
 
 export const db = drizzle(sql, { schema });
 export * from './schema';
+export * from 'drizzle-orm';

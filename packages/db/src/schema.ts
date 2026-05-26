@@ -19,6 +19,11 @@ export const postStatusEnum = pgEnum('post_status', ['draft', 'published', 'sche
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['pending', 'active', 'expired', 'cancelled']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'confirmed', 'failed']);
 export const emailStatusEnum = pgEnum('email_status', ['sent', 'bounced', 'opened']);
+export const vaultCategoryEnum = pgEnum('vault_category', ['research', 'report', 'analysis', 'guide', 'data', 'essay']);
+export const vaultEntryStatusEnum = pgEnum('vault_entry_status', ['draft', 'pending_review', 'published', 'rejected']);
+export const vaultAccessTypeEnum = pgEnum('vault_access_type', ['single_purchase', 'vault_pass']);
+export const vaultPassStatusEnum = pgEnum('vault_pass_status', ['pending', 'active', 'expired', 'cancelled']);
+export const vaultRevenueStatusEnum = pgEnum('vault_revenue_status', ['pending', 'paid']);
 
 // Tables
 export const users = pgTable(
@@ -155,11 +160,87 @@ export const emailSends = pgTable('email_sends', {
   status: emailStatusEnum('status').notNull(),
 });
 
+export const vaultEntries = pgTable('vault_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  authorId: uuid('author_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  abstract: text('abstract').notNull(),
+  coverImageUrl: text('cover_image_url'),
+  contentHtml: text('content_html').notNull(),
+  category: vaultCategoryEnum('category').notNull(),
+  tags: text('tags').array(),
+  singleAccessPriceUsdc: numeric('single_access_price_usdc', { precision: 12, scale: 6 }),
+  isVaultPassIncluded: boolean('is_vault_pass_included').default(true).notNull(),
+  wordCount: integer('word_count').notNull(),
+  readTimeMinutes: integer('read_time_minutes').notNull(),
+  accessCount: integer('access_count').default(0).notNull(),
+  status: vaultEntryStatusEnum('status').notNull(),
+  rejectionReason: text('rejection_reason'),
+  publishedAt: timestamp('published_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const vaultAccessRecords = pgTable(
+  'vault_access_records',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    entryId: uuid('entry_id')
+      .notNull()
+      .references(() => vaultEntries.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    accessType: vaultAccessTypeEnum('access_type').notNull(),
+    txSignature: text('tx_signature').unique(),
+    amountPaidUsdc: numeric('amount_paid_usdc', { precision: 12, scale: 6 }),
+    accessedAt: timestamp('accessed_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    entryUserUnique: unique('vault_access_records_entry_user_unique').on(table.entryId, table.userId),
+  })
+);
+
+export const vaultPassSubscriptions = pgTable('vault_pass_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  subscriberId: uuid('subscriber_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  status: vaultPassStatusEnum('status').notNull(),
+  startedAt: timestamp('started_at').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  lastTxSignature: text('last_tx_signature'),
+  monthlyPriceUsdc: numeric('monthly_price_usdc', { precision: 12, scale: 6 }).default('5.00').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const vaultRevenueDistributions = pgTable('vault_revenue_distributions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  authorId: uuid('author_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  accessCount: integer('access_count').notNull(),
+  totalPoolUsdc: numeric('total_pool_usdc', { precision: 12, scale: 6 }).notNull(),
+  authorShareUsdc: numeric('author_share_usdc', { precision: 12, scale: 6 }).notNull(),
+  distributionTxSignature: text('distribution_tx_signature'),
+  status: vaultRevenueStatusEnum('status').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   publications: many(publications),
   subscriptions: many(subscriptions),
   emailSends: many(emailSends),
+  vaultEntries: many(vaultEntries),
+  vaultAccessRecords: many(vaultAccessRecords),
+  vaultPassSubscriptions: many(vaultPassSubscriptions),
+  vaultRevenueDistributions: many(vaultRevenueDistributions),
 }));
 
 export const publicationsRelations = relations(publications, ({ one, many }) => ({
@@ -209,6 +290,39 @@ export const emailSendsRelations = relations(emailSends, ({ one }) => ({
   }),
 }));
 
+export const vaultEntriesRelations = relations(vaultEntries, ({ one, many }) => ({
+  author: one(users, {
+    fields: [vaultEntries.authorId],
+    references: [users.id],
+  }),
+  accessRecords: many(vaultAccessRecords),
+}));
+
+export const vaultAccessRecordsRelations = relations(vaultAccessRecords, ({ one }) => ({
+  entry: one(vaultEntries, {
+    fields: [vaultAccessRecords.entryId],
+    references: [vaultEntries.id],
+  }),
+  user: one(users, {
+    fields: [vaultAccessRecords.userId],
+    references: [users.id],
+  }),
+}));
+
+export const vaultPassSubscriptionsRelations = relations(vaultPassSubscriptions, ({ one }) => ({
+  subscriber: one(users, {
+    fields: [vaultPassSubscriptions.subscriberId],
+    references: [users.id],
+  }),
+}));
+
+export const vaultRevenueDistributionsRelations = relations(vaultRevenueDistributions, ({ one }) => ({
+  author: one(users, {
+    fields: [vaultRevenueDistributions.authorId],
+    references: [users.id],
+  }),
+}));
+
 // Inferred Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -227,3 +341,15 @@ export type NewTransaction = typeof transactions.$inferInsert;
 
 export type EmailSend = typeof emailSends.$inferSelect;
 export type NewEmailSend = typeof emailSends.$inferInsert;
+
+export type VaultEntry = typeof vaultEntries.$inferSelect;
+export type NewVaultEntry = typeof vaultEntries.$inferInsert;
+
+export type VaultAccessRecord = typeof vaultAccessRecords.$inferSelect;
+export type NewVaultAccessRecord = typeof vaultAccessRecords.$inferInsert;
+
+export type VaultPassSubscription = typeof vaultPassSubscriptions.$inferSelect;
+export type NewVaultPassSubscription = typeof vaultPassSubscriptions.$inferInsert;
+
+export type VaultRevenueDistribution = typeof vaultRevenueDistributions.$inferSelect;
+export type NewVaultRevenueDistribution = typeof vaultRevenueDistributions.$inferInsert;

@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next';
 import { db, publications, posts } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { eq } from '@solscribe/db';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://solscribe.app';
 

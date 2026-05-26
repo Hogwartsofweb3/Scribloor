@@ -1,6 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { db, publications, users } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { db, publications, users, eq } from '@solscribe/db';
 
 export const runtime = 'edge';
 export const alt = 'Publication on Solscribe';
@@ -13,11 +12,11 @@ export default async function Image({ params }: { params: { publicationSlug: str
 
   try {
     pub = await db.query.publications.findFirst({
-      where: eq(publications.slug, params.publicationSlug),
+      where: (pubs, { eq }) => eq(pubs.slug, params.publicationSlug),
     });
     if (pub) {
       creator = await db.query.users.findFirst({
-        where: eq(users.id, pub.ownerId),
+        where: (users, { eq }) => eq(users.id, pub.ownerId),
       });
     }
   } catch {}

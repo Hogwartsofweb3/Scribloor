@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, posts, publications, users } from '@solscribe/db';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc } from '@solscribe/db';
 import { getServerUser } from '@/lib/auth/privy';
 
 export const dynamic = 'force-dynamic';

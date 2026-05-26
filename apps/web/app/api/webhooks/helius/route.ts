@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { db, subscriptions, transactions, publications, users } from '@solscribe/db';
-import { eq, and } from 'drizzle-orm';
+import { db, subscriptions, transactions, publications, users, vaultAccessRecords, vaultPassSubscriptions } from '@solscribe/db';
+import { eq, and } from '@solscribe/db';
 import { getConnection } from '@/lib/solana/connection';
 import { verifySubscriptionTx } from '@/lib/solana/verify';
 import { sendSubscriptionWelcomeEmail } from '@/lib/email/subscription';
-import { PLATFORM_FEE_BPS } from '@/lib/solana/constants';
+import { PLATFORM_FEE_BPS, PLATFORM_FEE_WALLET } from '@/lib/solana/constants';
 import type { HeliusWebhookPayload, EnhancedTransaction } from '@/types/helius';
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
@@ -44,7 +44,13 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 2. Process each transaction ──────────────────────────────────────────
-  await Promise.allSettled(payload.map(processSingleTransaction));
+  await Promise.allSettled(
+    payload.flatMap(tx => [
+      processSingleTransaction(tx),
+      processVaultSingleAccess(tx),
+      processVaultPass(tx),
+    ])
+  );
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }
@@ -190,3 +196,95 @@ async function processSingleTransaction(tx: EnhancedTransaction): Promise<void> 
     console.error(`[helius-webhook] Error processing tx ${signature}:`, err);
   }
 }
+
+/**
+ * Handles Vault single-access payment confirmations from Helius.
+ * Looks for a pending vault_access_record with no txSignature that matches
+ * the USDC transfer amount and updates it to confirmed.
+ */
+async function processVaultSingleAccess(tx: EnhancedTransaction): Promise<void> {
+  const { signature } = tx;
+  try {
+    const usdcTransfer = tx.tokenTransfers?.find(
+      (t) => t.mint === USDC_MINT && t.tokenAmount > 0 && t.toUserAccount === PLATFORM_FEE_WALLET
+    );
+    if (!usdcTransfer) return;
+
+    // Check if this tx already confirmed a vault record
+    const existing = await db.query.vaultAccessRecords.findFirst({
+      where: eq(vaultAccessRecords.txSignature, signature),
+    });
+    if (existing) return;
+
+    // Find a pending vault_access_record (single_purchase, no tx yet) with matching amount
+    const pending = await db.query.vaultAccessRecords.findFirst({
+      where: and(
+        eq(vaultAccessRecords.accessType, 'single_purchase'),
+      ),
+      with: { entry: true },
+    });
+
+    if (!pending || pending.txSignature) return;
+
+    // Validate amount matches
+    const expectedAmount = parseFloat(pending.amountPaidUsdc || '0');
+    if (Math.abs(usdcTransfer.tokenAmount - expectedAmount) > 0.01) return;
+
+    await db.update(vaultAccessRecords)
+      .set({ txSignature: signature })
+      .where(eq(vaultAccessRecords.id, pending.id));
+
+    console.info(`[helius-webhook] Vault single access confirmed: entry=${pending.entryId} tx=${signature}`);
+  } catch (err) {
+    console.error(`[helius-webhook] Vault single access error for tx ${signature}:`, err);
+  }
+}
+
+/**
+ * Handles Vault Pass payment confirmations from Helius.
+ * Activates the pending vault_pass_subscription for the buyer.
+ */
+async function processVaultPass(tx: EnhancedTransaction): Promise<void> {
+  const { signature } = tx;
+  try {
+    const usdcTransfer = tx.tokenTransfers?.find(
+      (t) => t.mint === USDC_MINT && t.tokenAmount === 5.0 && t.toUserAccount === PLATFORM_FEE_WALLET
+    );
+    if (!usdcTransfer) return;
+
+    // Check idempotency
+    const existing = await db.query.vaultPassSubscriptions.findFirst({
+      where: eq(vaultPassSubscriptions.lastTxSignature, signature),
+    });
+    if (existing) return;
+
+    // Find a pending pass for the sender wallet
+    const senderWallet = usdcTransfer.fromUserAccount;
+    const senderUser = await db.query.users.findFirst({
+      where: eq(users.walletAddress, senderWallet),
+    });
+    if (!senderUser) return;
+
+    const pendingPass = await db.query.vaultPassSubscriptions.findFirst({
+      where: and(
+        eq(vaultPassSubscriptions.subscriberId, senderUser.id),
+        eq(vaultPassSubscriptions.status, 'pending' as any),
+      ),
+    });
+    if (!pendingPass) return;
+
+    await db.update(vaultPassSubscriptions)
+      .set({
+        status: 'active',
+        lastTxSignature: signature,
+        startedAt: new Date(),
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      })
+      .where(eq(vaultPassSubscriptions.id, pendingPass.id));
+
+    console.info(`[helius-webhook] Vault Pass activated: user=${senderUser.id} tx=${signature}`);
+  } catch (err) {
+    console.error(`[helius-webhook] Vault Pass error for tx ${signature}:`, err);
+  }
+}
+

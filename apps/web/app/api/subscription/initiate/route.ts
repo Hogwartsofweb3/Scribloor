@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getServerUser } from '@/lib/auth/privy';
 import { db, publications, subscriptions, transactions, users } from '@solscribe/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@solscribe/db';
 import { randomUUID } from 'crypto';
 import { PLATFORM_FEE_BPS, PLATFORM_FEE_WALLET } from '@/lib/solana/constants';
 

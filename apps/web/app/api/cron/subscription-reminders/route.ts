@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, subscriptions, publications } from '@solscribe/db';
-import { eq, and, lt, gt, lte, sql } from 'drizzle-orm';
+import { eq, and, lt, gt, lte, sql } from '@solscribe/db';
 import { sendSubscriptionReminderEmail } from '@/lib/email/subscription';
 
 export const dynamic = 'force-dynamic';

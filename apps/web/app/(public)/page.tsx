@@ -1,7 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { db, publications, users, transactions } from '@solscribe/db';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq } from '@solscribe/db';
 import { Button } from '@/components/ui/button';
 import { PublicationCard } from '@/components/shared/PublicationCard';
 import {

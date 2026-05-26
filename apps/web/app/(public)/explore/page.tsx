@@ -1,7 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { db, publications, posts } from '@solscribe/db';
-import { eq, and, desc, gte } from 'drizzle-orm';
+import { db, publications, posts, eq, and, desc, gte } from '@solscribe/db';
 import { Button } from '@/components/ui/button';
 import { PublicationCard } from '@/components/shared/PublicationCard';
 import { PostCard } from '@/components/shared/PostCard';

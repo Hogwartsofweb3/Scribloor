@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { getServerUser } from '@/lib/auth/privy';
 import { syncPrivyUser } from '@/lib/auth/session';
 import { db, users } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { eq } from '@solscribe/db';
 
 export async function GET(request: NextRequest) {
   try {

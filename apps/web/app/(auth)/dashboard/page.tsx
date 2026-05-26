@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   Users,
   DollarSign,
@@ -13,8 +14,9 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import RevenueChart from '@/components/dashboard/RevenueChart';
-import SubscriberGrowthChart from '@/components/dashboard/SubscriberGrowthChart';
+
+const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), { ssr: false });
+const SubscriberGrowthChart = dynamic(() => import('@/components/dashboard/SubscriberGrowthChart'), { ssr: false });
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import SubscriberTable from '@/components/dashboard/SubscriberTable';
 

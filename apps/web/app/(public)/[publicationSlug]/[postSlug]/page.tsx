@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import DOMPurify from 'isomorphic-dompurify';
 
 export default function EditorialReaderPage() {
   const params = useParams();
@@ -215,7 +216,7 @@ export default function EditorialReaderPage() {
         {/* Render HTML content safely inside styled prose Serif typography */}
         <div
           className="prose prose-invert prose-serif prose-amber max-w-none text-zinc-200 leading-relaxed font-serif text-[17px]"
-          dangerouslySetInnerHTML={{ __html: post.contentToShow }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.contentToShow) }}
         />
 
         {/* Interactive Paywall Gate Overlay */}

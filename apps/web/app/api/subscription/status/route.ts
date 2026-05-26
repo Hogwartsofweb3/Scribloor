@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, users } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { eq } from '@solscribe/db';
 import { getServerUser } from '@/lib/auth/privy';
 import { hasActiveSubscription } from '@/lib/subscriptions/access';
 

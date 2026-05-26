@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, publications, users } from '@solscribe/db';
-import { eq, and, ne } from 'drizzle-orm';
+import { eq, and, ne } from '@solscribe/db';
 import { getServerUser } from '@/lib/auth/privy';
 import { PublicationSchema } from '@/lib/validations/publication';
 

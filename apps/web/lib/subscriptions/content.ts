@@ -1,5 +1,5 @@
 import { db, posts, publications } from '@solscribe/db';
-import { eq, and } from 'drizzle-orm';
+import { eq, and } from '@solscribe/db';
 import { hasActiveSubscription } from './access';
 
 export interface PostWithAccess {

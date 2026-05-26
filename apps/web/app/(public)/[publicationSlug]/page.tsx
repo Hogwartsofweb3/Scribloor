@@ -1,7 +1,6 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import { db, publications, posts, users } from '@solscribe/db';
-import { eq, and, desc } from 'drizzle-orm';
+import { db, publications, posts, users, eq, and, desc } from '@solscribe/db';
 import { PostCard } from '@/components/shared/PostCard';
 import { PaywallGate } from '@/components/shared/PaywallGate';
 import { Calendar, Users, ShieldCheck, Mail } from 'lucide-react';
@@ -19,7 +18,7 @@ interface PublicationPageProps {
 export async function generateStaticParams() {
   try {
     const activePubs = await db.query.publications.findMany({
-      where: eq(publications.isPublished, true),
+      where: (pubs, { eq }) => eq(pubs.isPublished, true),
     });
     return activePubs.map((pub) => ({
       publicationSlug: pub.slug,
@@ -33,7 +32,7 @@ export async function generateStaticParams() {
 // Compile SEO and OG meta-tags dynamically
 export async function generateMetadata({ params }: PublicationPageProps) {
   const pub = await db.query.publications.findFirst({
-    where: eq(publications.slug, params.publicationSlug),
+    where: (pubs, { eq }) => eq(pubs.slug, params.publicationSlug),
   });
 
   if (!pub) {
@@ -58,7 +57,7 @@ export default async function PublicPublicationPage({ params }: PublicationPageP
 
   // 1. Resolve target publication by slug
   const pub = await db.query.publications.findFirst({
-    where: eq(publications.slug, publicationSlug),
+    where: (pubs, { eq }) => eq(pubs.slug, publicationSlug),
   });
 
   if (!pub || !pub.isPublished) {
@@ -67,16 +66,16 @@ export default async function PublicPublicationPage({ params }: PublicationPageP
 
   // 2. Fetch the publication owner creator details
   const owner = await db.query.users.findFirst({
-    where: eq(users.id, pub.ownerId),
+    where: (users, { eq }) => eq(users.id, pub.ownerId),
   });
 
   // 3. Fetch all published posts inside this publication archives
   const pubPosts = await db.query.posts.findMany({
-    where: and(
+    where: (posts, { eq, and }) => and(
       eq(posts.publicationId, pub.id),
       eq(posts.status, 'published')
     ),
-    orderBy: [desc(posts.publishedAt)],
+    orderBy: (posts, { desc }) => [desc(posts.publishedAt)],
   });
 
   const price = pub.monthlyPriceUsdc ? Number(pub.monthlyPriceUsdc) : 0;

@@ -1,5 +1,5 @@
 import { db, subscriptions } from '@solscribe/db';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, gt } from '@solscribe/db';
 import { redis } from '@/lib/redis';
 import { doesWalletHoldCollectionNft } from '@/lib/solana/nft';
 

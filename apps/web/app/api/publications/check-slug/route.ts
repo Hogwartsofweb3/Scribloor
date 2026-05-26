@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { db, publications } from '@solscribe/db';
-import { eq } from 'drizzle-orm';
+import { eq } from '@solscribe/db';
 
 export const dynamic = 'force-dynamic';
 
