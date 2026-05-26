@@ -10,8 +10,8 @@
     --card-foreground: 20 14.3% 4.1%;
     --popover: 0 0% 100%;
     --popover-foreground: 20 14.3% 4.1%;
-    --primary: 38 92% 50%; /* Gold / Orange */
-    --primary-foreground: 26 83.3% 14.1%;
+    --primary: 262 80% 50%; /* Brand Purple DEFAULT */
+    --primary-foreground: 260 100% 98%;
     --secondary: 60 4.8% 95.9%;
     --secondary-foreground: 24 9.8% 10%;
     --muted: 60 4.8% 95.9%;
@@ -22,30 +22,61 @@
     --destructive-foreground: 60 9.1% 97.8%;
     --border: 20 5.9% 90%;
     --input: 20 5.9% 90%;
-    --ring: 38 92% 50%;
+    --ring: 262 80% 50%;
     --radius: 0.5rem;
+
+    /* Semantic Tokens (Light Mode) */
+    --surface-primary: 0 0% 100%;
+    --surface-secondary: 240 4.8% 95.9%;
+    --surface-tertiary: 240 5.9% 90%;
+    --text-primary: 240 10% 3.9%;
+    --text-secondary: 240 5.2% 33.9%;
+    --text-muted: 240 3.8% 46.1%;
+    --border-default: 240 5.9% 90%;
+    --border-strong: 240 4.9% 83.9%;
+    --border-focus: 262 80% 50%;
+
+    /* Brand Hex Codes */
+    --color-brand-50: #EEEDFE;
+    --color-brand-100: #CECBF6;
+    --color-brand-200: #AFA9EC;
+    --color-brand-400: #7F77DD;
+    --color-brand-500: #534AB7;
+    --color-brand-600: #3C3489;
+    --color-brand-900: #26215C;
   }
 
   .dark {
-    --background: 260 20% 10%; /* Deep Purple / Black */
+    --background: 260 20% 6%; /* Deep dark slate with purple hint */
     --foreground: 60 9.1% 97.8%;
-    --card: 260 20% 12%;
+    --card: 260 20% 9%;
     --card-foreground: 60 9.1% 97.8%;
-    --popover: 260 20% 12%;
+    --popover: 260 20% 9%;
     --popover-foreground: 60 9.1% 97.8%;
-    --primary: 38 92% 50%; /* Gold / Orange */
-    --primary-foreground: 26 83.3% 14.1%;
-    --secondary: 260 10% 20%;
+    --primary: 262 80% 50%;
+    --primary-foreground: 260 100% 98%;
+    --secondary: 260 10% 15%;
     --secondary-foreground: 60 9.1% 97.8%;
-    --muted: 260 10% 20%;
+    --muted: 260 10% 15%;
     --muted-foreground: 24 5.4% 63.9%;
-    --accent: 260 10% 20%;
+    --accent: 260 10% 15%;
     --accent-foreground: 60 9.1% 97.8%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 60 9.1% 97.8%;
-    --border: 260 10% 20%;
-    --input: 260 10% 20%;
-    --ring: 38 92% 50%;
+    --border: 260 10% 15%;
+    --input: 260 10% 15%;
+    --ring: 262 80% 50%;
+
+    /* Semantic Tokens (Dark Mode) */
+    --surface-primary: 260 20% 6%;
+    --surface-secondary: 260 20% 9%;
+    --surface-tertiary: 260 10% 15%;
+    --text-primary: 0 0% 98%;
+    --text-secondary: 240 5% 80%;
+    --text-muted: 240 5% 64.9%;
+    --border-default: 260 10% 15%;
+    --border-strong: 260 10% 22%;
+    --border-focus: 262 80% 50%;
   }
 }
 
