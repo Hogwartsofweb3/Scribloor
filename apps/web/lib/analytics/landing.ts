@@ -1,3 +1,5 @@
+"use server";
+
 import { db, landingEvents } from '@solscribe/db';
 import { headers } from 'next/headers';
 
