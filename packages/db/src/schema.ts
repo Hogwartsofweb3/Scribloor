@@ -375,3 +375,14 @@ export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one })
 
 export type PushSubscription = typeof pushSubscriptions.$inferSelect;
 export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+export const landingEvents = pgTable('landing_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  eventType: text('event_type').notNull(),
+  country: text('country'),
+  metadata: text('metadata'),
+  timestamp: timestamp('timestamp').defaultNow().notNull(),
+});
+
+export type LandingEvent = typeof landingEvents.$inferSelect;
+export type NewLandingEvent = typeof landingEvents.$inferInsert;
