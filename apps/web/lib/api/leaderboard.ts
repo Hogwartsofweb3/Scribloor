@@ -1,7 +1,7 @@
 import { db, publications, users, transactions, subscriptions, eq, desc, and, sql } from '@solscribe/db';
 import { redis } from '@/lib/redis';
 
-export async function getLeaderboardData() {
+export async function getLeaderboardData(): Promise<any> {
   const cacheKey = 'public:leaderboard:data';
 
   try {
