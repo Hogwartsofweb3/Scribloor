@@ -1,25 +1,33 @@
 'use client';
 
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import {
-  PenSquare,
-  ChevronDown,
-  LogOut,
-  User,
-  Settings,
-} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Search, ChevronDown, User, BookOpen, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import NotificationBell from '@/components/ui/NotificationBell';
-import { useState, useRef, useEffect } from 'react';
 
 export default function AppHeader() {
-  const pathname = usePathname();
+  const router = useRouter();
   const { user, logout } = usePrivy();
+  const [searchQuery, setSearchQuery] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Fetch publication to link "My publication"
+  const { data: pubData } = useQuery({
+    queryKey: ['creator-publication'],
+    queryFn: async () => {
+      const res = await fetch('/api/publications');
+      if (!res.ok) throw new Error('Failed to fetch publication');
+      return res.json();
+    },
+  });
+
+  const publication = pubData?.publication;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -32,13 +40,12 @@ export default function AppHeader() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Generate breadcrumbs from pathname
-  const segments = pathname.split('/').filter(Boolean);
-  const breadcrumbs = segments.map((seg, i) => ({
-    label: seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' '),
-    href: '/' + segments.slice(0, i + 1).join('/'),
-    isLast: i === segments.length - 1,
-  }));
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/explore?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
 
   const displayName = user?.email?.address
     ? user.email.address.split('@')[0]
@@ -47,96 +54,81 @@ export default function AppHeader() {
     : 'Creator';
 
   return (
-    <header className="sticky top-0 z-50 glass safe-area-top" id="app-header">
-      <div className="flex items-center justify-between h-[var(--header-height)] px-4 lg:px-6">
-        {/* Left: Logo + Breadcrumbs */}
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href="/dashboard" className="flex items-center gap-2 shrink-0 group">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
-              <span className="text-primary-foreground font-bold text-sm">S</span>
-            </div>
-            <span className="hidden lg:inline text-lg font-bold tracking-tight text-foreground">
-              Sol<span className="text-primary">scribe</span>
-            </span>
-          </Link>
+    <header className="sticky top-0 z-50 bg-white dark:bg-[#111110] border-b border-[var(--color-border)] h-[56px] safe-area-top select-none">
+      <div className="h-full px-4 lg:px-6 flex items-center justify-between">
+        {/* Left Logo */}
+        <Link href="/explore" className="font-serif font-bold text-lg text-foreground tracking-tight shrink-0">
+          Sol<span className="text-[var(--color-brand-500)]">scribe</span>
+        </Link>
 
-          {/* Breadcrumbs */}
-          <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground min-w-0">
-            {breadcrumbs.map((crumb) => (
-              <span key={crumb.href} className="flex items-center gap-1 min-w-0">
-                <span className="text-border-strong">/</span>
-                {crumb.isLast ? (
-                  <span className="text-foreground font-medium truncate max-w-[150px]">{crumb.label}</span>
-                ) : (
-                  <Link href={crumb.href} className="hover:text-foreground truncate max-w-[120px] transition-colors">
-                    {crumb.label}
-                  </Link>
-                )}
-              </span>
-            ))}
-          </div>
+        {/* Center: Search input */}
+        <div className="hidden md:block flex-1 max-w-md mx-8">
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+            <input
+              type="text"
+              placeholder="Search publications..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-10 pr-4 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-primary)] focus:bg-[var(--color-bg-primary)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition-all"
+            />
+          </form>
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
-          {/* New Post CTA */}
-          <Link href="/dashboard/posts/new">
-            <button className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20" id="app-header-new-post">
-              <PenSquare size={15} />
-              New Post
-            </button>
-          </Link>
-
-          <NotificationBell />
+        <div className="flex items-center gap-3">
           <ThemeToggle />
+          <NotificationBell />
 
-          {/* Avatar Dropdown */}
+          {/* User Menu Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className={cn(
-                'flex items-center gap-1.5 p-1.5 rounded-lg transition-colors',
-                dropdownOpen ? 'bg-accent' : 'hover:bg-accent'
+                'flex items-center gap-1.5 p-1 rounded-[var(--radius-md)] transition-colors hover:bg-black/5 dark:hover:bg-white/5',
+                dropdownOpen && 'bg-black/5 dark:hover:bg-white/5'
               )}
-              id="app-header-avatar"
             >
-              <div className="w-7 h-7 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs font-bold">
-                {displayName.charAt(0).toUpperCase()}
+              <div className="w-8 h-8 rounded-full bg-[var(--color-brand-50)] dark:bg-zinc-800 border border-[var(--color-border-strong)] flex items-center justify-center text-[var(--color-brand-500)] text-sm font-bold uppercase">
+                {displayName.charAt(0)}
               </div>
-              <ChevronDown size={14} className={cn('text-muted-foreground transition-transform', dropdownOpen && 'rotate-180')} />
+              <ChevronDown size={14} className="text-[var(--color-text-secondary)]" />
             </button>
 
             {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-xl shadow-xl py-1.5 animate-scale-in">
-                <div className="px-3 py-2 border-b border-border">
-                  <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                  <p className="text-xs text-muted-foreground">Creator Account</p>
+              <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#111110] border border-[var(--color-border)] rounded-[var(--radius-lg)] shadow-xl py-1.5 z-50">
+                <div className="px-3 py-2 border-b border-[var(--color-border)]">
+                  <p className="text-xs text-[var(--color-text-muted)]">Signed in as</p>
+                  <p className="text-sm font-bold text-[var(--color-text-primary)] truncate">{displayName}</p>
                 </div>
+
                 <Link
                   href="/account"
                   onClick={() => setDropdownOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
                   <User size={15} />
-                  Account
+                  My account
                 </Link>
+
                 <Link
-                  href="/dashboard/settings"
+                  href={publication ? `/${publication.slug}` : '/dashboard'}
                   onClick={() => setDropdownOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
-                  <Settings size={15} />
-                  Settings
+                  <BookOpen size={15} />
+                  My publication
                 </Link>
+
                 <button
                   onClick={() => {
                     setDropdownOpen(false);
                     logout();
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-accent transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-500 hover:text-red-400 hover:bg-red-500/5 transition-colors text-left"
                 >
                   <LogOut size={15} />
-                  Sign Out
+                  Sign out
                 </button>
               </div>
             )}

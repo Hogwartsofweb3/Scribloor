@@ -6,45 +6,36 @@ import { cn } from '@/lib/utils';
 
 interface PageWrapperProps {
   children: React.ReactNode;
-  title?: string;
-  subtitle?: string;
+  maxWidth?: '680' | '960' | '1200';
+  noPadding?: boolean;
   className?: string;
-  narrow?: boolean;
 }
 
 export default function PageWrapper({
   children,
-  title,
-  subtitle,
+  maxWidth = '1200',
+  noPadding = false,
   className,
-  narrow = false,
 }: PageWrapperProps) {
+  const widthClass = {
+    '680': 'max-w-[680px]',
+    '960': 'max-w-[960px]',
+    '1200': 'max-w-[1200px]',
+  }[maxWidth];
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
+      exit={{ opacity: 0, y: 8 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
       className={cn(
-        'w-full mx-auto px-4 py-6 md:py-10 flex-1 flex flex-col',
-        narrow ? 'max-w-2xl' : 'max-w-6xl',
+        'w-full mx-auto min-h-screen flex flex-col flex-1',
+        noPadding ? 'px-0' : 'px-5 md:px-10',
+        widthClass,
         className
       )}
     >
-      {(title || subtitle) && (
-        <div className="mb-6 md:mb-10 space-y-2">
-          {title && (
-            <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground font-sans">
-              {title}
-            </h1>
-          )}
-          {subtitle && (
-            <p className="text-base md:text-lg text-muted-foreground leading-relaxed">
-              {subtitle}
-            </p>
-          )}
-        </div>
-      )}
       {children}
     </motion.div>
   );

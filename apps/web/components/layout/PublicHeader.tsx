@@ -1,173 +1,196 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Compass,
-  Trophy,
-  LogIn,
-  Menu,
-  X,
-} from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { useUIStore } from '@/lib/stores/uiStore';
 
-const navLinks = [
-  { href: '/explore', label: 'Explore', icon: Compass },
-  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+// Custom Tabler Menu-2 Icon SVG
+const Menu2Icon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="w-6 h-6 stroke-current"
+    viewBox="0 0 24 24"
+    strokeWidth="2"
+    fill="none"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M4 6l16 0" />
+    <path d="M4 12l16 0" />
+    <path d="M4 18l12 0" />
+  </svg>
+);
+
+const navItems = [
+  { label: 'Features', id: 'features' },
+  { label: 'The Vault', id: 'vault' },
+  { label: 'Pricing', id: 'pricing' },
+  { label: 'For Creators', id: 'creators' },
 ];
 
 export default function PublicHeader() {
   const pathname = usePathname();
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, login } = usePrivy();
   const { mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Monitor scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const isHomepage = pathname === '/';
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    if (isHomepage) {
+      e.preventDefault();
+      const element = document.getElementById(id);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+      setMobileMenuOpen(false);
+    }
+  };
 
   return (
     <>
-      <header className="sticky top-0 z-50 glass safe-area-top">
-        <div className="max-w-6xl mx-auto flex items-center justify-between h-[var(--header-height)] px-4">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group" id="public-header-logo">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:shadow-primary/40 transition-shadow">
-              <span className="text-primary-foreground font-bold text-sm">S</span>
-            </div>
-            <span className="text-lg font-bold tracking-tight text-foreground">
-              Sol<span className="text-primary">scribe</span>
-            </span>
+      <header
+        className={cn(
+          'fixed top-0 left-0 right-0 z-50 transition-all duration-300 safe-area-top h-[60px]',
+          isScrolled
+            ? 'bg-white/95 dark:bg-[#111110]/95 border-b-[0.5px] border-[var(--color-border)] shadow-sm backdrop-blur-md'
+            : 'bg-transparent border-b-0'
+        )}
+      >
+        <div className="max-w-[1200px] mx-auto h-full px-4 md:px-10 flex items-center justify-between">
+          {/* Logo Left */}
+          <Link href="/" className="font-serif font-bold text-xl text-foreground tracking-tight select-none">
+            Sol<span className="text-[var(--color-brand-500)]">scribe</span>
           </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-1" id="public-header-nav">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname.startsWith(link.href);
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    isActive
-                      ? 'text-primary bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  )}
-                >
-                  <Icon size={16} />
-                  {link.label}
-                </Link>
-              );
-            })}
+          {/* Nav Center (Desktop Only) */}
+          <nav className="hidden md:flex items-center gap-6">
+            {navItems.map((item) => (
+              <a
+                key={item.id}
+                href={isHomepage ? `#${item.id}` : `/#${item.id}`}
+                onClick={(e) => handleNavClick(e, item.id)}
+                className="text-sm font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors"
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <ThemeToggle />
 
             {ready && authenticated ? (
               <Link href="/dashboard">
-                <button className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20" id="public-header-dashboard-btn">
+                <button className="hidden md:block px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition-colors shadow-sm">
                   Dashboard
                 </button>
               </Link>
             ) : (
-              <Link href="/login">
-                <button className="hidden md:flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20" id="public-header-login-btn">
-                  <LogIn size={16} />
-                  Sign In
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  onClick={login}
+                  className="px-4 py-2 rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                >
+                  Sign in
                 </button>
-              </Link>
+                <button
+                  onClick={login}
+                  className="px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition-colors shadow-sm"
+                >
+                  Start writing
+                </button>
+              </div>
             )}
 
-            {/* Mobile Menu Toggle */}
+            {/* Mobile Menu Toggle Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              id="public-header-menu-toggle"
+              className="md:hidden p-2 rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               aria-label="Toggle menu"
             >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu2Icon />}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Slide-down Menu */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 md:hidden"
+            className="fixed inset-x-0 top-[60px] z-40 md:hidden bg-white dark:bg-[#111110] border-b border-[var(--color-border)] shadow-xl flex flex-col p-6 gap-6 safe-area-bottom"
           >
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-background/60 backdrop-blur-sm"
-              onClick={() => setMobileMenuOpen(false)}
-            />
-
-            {/* Slide-out Panel */}
-            <motion.nav
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="absolute right-0 top-0 bottom-0 w-72 bg-card border-l border-border shadow-2xl p-6 flex flex-col gap-6"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Menu</span>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"
+            <div className="flex flex-col gap-4">
+              {navItems.map((item) => (
+                <a
+                  key={item.id}
+                  href={isHomepage ? `#${item.id}` : `/#${item.id}`}
+                  onClick={(e) => handleNavClick(e, item.id)}
+                  className="text-base font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors py-1"
                 >
-                  <X size={18} />
-                </button>
-              </div>
+                  {item.label}
+                </a>
+              ))}
+            </div>
 
-              <div className="flex flex-col gap-1">
-                {navLinks.map((link) => {
-                  const Icon = link.icon;
-                  const isActive = pathname.startsWith(link.href);
-                  return (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        'flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        isActive
-                          ? 'text-primary bg-primary/5'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                      )}
-                    >
-                      <Icon size={18} />
-                      {link.label}
-                    </Link>
-                  );
-                })}
-              </div>
+            <hr className="border-[var(--color-border)]" />
 
-              <div className="mt-auto">
-                {ready && authenticated ? (
-                  <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                    <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
-                      Dashboard
-                    </button>
-                  </Link>
-                ) : (
-                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
-                    <button className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold">
-                      <LogIn size={16} />
-                      Sign In
-                    </button>
-                  </Link>
-                )}
-              </div>
-            </motion.nav>
+            <div className="flex flex-col gap-2.5">
+              {ready && authenticated ? (
+                <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                  <button className="w-full py-3 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white font-bold text-sm shadow transition-colors">
+                    Dashboard
+                  </button>
+                </Link>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      login();
+                    }}
+                    className="w-full py-3 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[var(--color-text-primary)] font-bold text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      login();
+                    }}
+                    className="w-full py-3 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white font-bold text-sm shadow transition-colors"
+                  >
+                    Start writing
+                  </button>
+                </>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -47,8 +47,10 @@
 
     /* Teal Accent */
     --color-teal-50: #E1F5EE;
+    --color-teal-400: #1D9E75;
     --color-teal-500: #14B8A6;
     --color-teal-600: #0D9488;
+    --color-teal-800: #085041;
 
     /* Amber Accent */
     --color-amber-50: #FFFBEB;
@@ -62,6 +64,24 @@
     --header-height: 64px;
     --sidebar-width: 260px;
     --sidebar-collapsed-width: 64px;
+
+    /* Prompt 33 Specific CSS Variables */
+    --color-bg-primary: #FFFFFF;
+    --color-bg-secondary: #F9F9F7;
+    --color-bg-tertiary: #F1EFE8;
+    --color-text-primary: #111110;
+    --color-text-secondary: #605E58;
+    --color-text-muted: #888780;
+    --color-border: rgba(0,0,0,0.08);
+    --color-border-strong: rgba(0,0,0,0.16);
+    --color-error: #E24B4A;
+    --color-warning: #BA7517;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-serif: 'Lora', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
   }
 
   .dark {
@@ -95,6 +115,16 @@
     --border-default: 260 10% 15%;
     --border-strong: 260 10% 22%;
     --border-focus: 262 80% 50%;
+
+    /* Prompt 33 Specific CSS Variables (Dark) */
+    --color-bg-primary: #111110;
+    --color-bg-secondary: #1A1A18;
+    --color-bg-tertiary: #222220;
+    --color-text-primary: #EDEBE3;
+    --color-text-secondary: #A8A49C;
+    --color-text-muted: #706E68;
+    --color-border: rgba(255,255,255,0.08);
+    --color-border-strong: rgba(255,255,255,0.16);
   }
 }
 
