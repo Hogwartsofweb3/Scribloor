@@ -60,6 +60,7 @@
     "resend": "^3.2.0",
     "tailwind-merge": "^2.2.2",
     "tailwindcss-animate": "^1.0.7",
+    "web-push": "^3.6.7",
     "workbox-webpack-plugin": "^7.4.1",
     "zod": "^3.22.4",
     "zustand": "^5.0.13"
@@ -74,6 +75,7 @@
     "@types/node": "^20.12.2",
     "@types/react": "^18.2.73",
     "@types/react-dom": "^18.2.23",
+    "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10.4.19",

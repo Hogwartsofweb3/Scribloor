@@ -6,55 +6,44 @@ const withPWA = withPWAInit({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
+  buildExcludes: [/middleware-manifest\.json$/],
   workboxOptions: {
     runtimeCaching: [
       {
-        urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/i,
-        handler: 'StaleWhileRevalidate',
+        urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com/,
+        handler: 'CacheFirst',
         options: {
           cacheName: 'google-fonts',
           expiration: { maxEntries: 4, maxAgeSeconds: 365 * 24 * 60 * 60 },
         },
       },
       {
-        urlPattern: /\.(?:eot|otf|ttc|ttf|woff|woff2|font.css)$/i,
-        handler: 'StaleWhileRevalidate',
-        options: {
-          cacheName: 'static-font-assets',
-          expiration: { maxEntries: 4, maxAgeSeconds: 7 * 24 * 60 * 60 },
-        },
-      },
-      {
-        urlPattern: /\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,
-        handler: 'CacheFirst',
-        options: {
-          cacheName: 'static-image-assets',
-          expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
-        },
-      },
-      {
-        urlPattern: /\/_next\/image\?url=.+$/i,
-        handler: 'CacheFirst',
-        options: {
-          cacheName: 'next-image',
-          expiration: { maxEntries: 100, maxAgeSeconds: 30 * 24 * 60 * 60 },
-        },
-      },
-      {
-        urlPattern: /\/api\/(?:posts|vault).*/i,
+        urlPattern: /\/api\/posts\/feed/,
         handler: 'NetworkFirst',
         options: {
-          cacheName: 'api-routes',
+          cacheName: 'feed-cache',
           networkTimeoutSeconds: 3,
-          expiration: { maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 },
+          expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 },
         },
       },
       {
-        urlPattern: /\.(?:js|css)$/i,
-        handler: 'StaleWhileRevalidate',
+        urlPattern: /\/api\//,
+        handler: 'NetworkOnly',
+      },
+      {
+        urlPattern: /\/_next\/static\//,
+        handler: 'CacheFirst',
         options: {
           cacheName: 'static-assets',
-          expiration: { maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 },
+          expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60 },
+        },
+      },
+      {
+        urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)/,
+        handler: 'CacheFirst',
+        options: {
+          cacheName: 'image-cache',
+          expiration: { maxEntries: 100, maxAgeSeconds: 7 * 24 * 60 * 60 },
         },
       },
     ],

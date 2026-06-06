@@ -3,9 +3,17 @@ import { Inter, Lora, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import SubscribeModal from '@/components/subscribe/SubscribeModal';
-
-import InstallPrompt from '@/components/shared/InstallPrompt';
 import MobileTabBar from '@/components/layout/MobileTabBar';
+
+// New global UI state components
+import { Toaster } from '@/components/ui/Toast';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import TipModal from '@/components/ui/TipModal';
+import ShareSheet from '@/components/ui/ShareSheet';
+import CommandPalette from '@/components/ui/CommandPalette';
+import KeyboardShortcuts from '@/components/layout/KeyboardShortcuts';
+import InstallPWAPrompt from '@/components/ui/InstallPWAPrompt';
+import OfflineBanner from '@/components/shared/OfflineBanner';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -91,9 +99,19 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       </head>
       <body className={inter.className}>
         <Providers attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <OfflineBanner />
           {children}
+          
+          {/* Global UI Components */}
+          <Toaster />
+          <ConfirmModal />
+          <TipModal />
+          <ShareSheet />
+          <CommandPalette />
+          <KeyboardShortcuts />
+          <InstallPWAPrompt />
+          
           <SubscribeModal />
-          <InstallPrompt />
           <MobileTabBar />
         </Providers>
       </body>
