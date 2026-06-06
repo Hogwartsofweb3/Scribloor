@@ -39,6 +39,10 @@ export const milestoneTypeEnum = pgEnum('milestone_type', [
   'publishing_streak_30',
 ]);
 
+export const migrationSourcePlatformEnum = pgEnum('migration_source_platform', ['substack', 'beehiiv', 'ghost', 'other']);
+export const migrationJobStatusEnum = pgEnum('migration_job_status', ['pending', 'processing', 'completed', 'failed']);
+export const migrationContactStatusEnum = pgEnum('migration_contact_status', ['pending', 'sent', 'opened', 'converted', 'bounced']);
+
 // Tables
 export const users = pgTable(
   'users',
@@ -328,6 +332,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   tipsReceived: many(tips, { relationName: 'tipsReceived' }),
   referralsMade: many(referrals, { relationName: 'referralsMade' }),
   referralsReceived: many(referrals, { relationName: 'referralsReceived' }),
+  migrationJobs: many(migrationJobs),
 }));
 
 export const publicationsRelations = relations(publications, ({ one, many }) => ({
@@ -338,6 +343,7 @@ export const publicationsRelations = relations(publications, ({ one, many }) => 
   posts: many(posts),
   subscriptions: many(subscriptions),
   tips: many(tips),
+  migrationJobs: many(migrationJobs),
 }));
 
 export const postsRelations = relations(posts, ({ one, many }) => ({
@@ -544,3 +550,73 @@ export const landingEvents = pgTable('landing_events', {
 
 export type LandingEvent = typeof landingEvents.$inferSelect;
 export type NewLandingEvent = typeof landingEvents.$inferInsert;
+
+export const migrationJobs = pgTable(
+  'migration_jobs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    publicationId: uuid('publication_id')
+      .notNull()
+      .references(() => publications.id, { onDelete: 'cascade' }),
+    sourcePlatform: migrationSourcePlatformEnum('source_platform').notNull(),
+    status: migrationJobStatusEnum('status').default('pending').notNull(),
+    totalContacts: integer('total_contacts').notNull(),
+    emailsSent: integer('emails_sent').default(0).notNull(),
+    emailsOpened: integer('emails_opened').default(0).notNull(),
+    conversions: integer('conversions').default(0).notNull(),
+    csvFileUrl: text('csv_file_url').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  }
+);
+
+export const migrationContacts = pgTable(
+  'migration_contacts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    jobId: uuid('job_id')
+      .notNull()
+      .references(() => migrationJobs.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    name: text('name'),
+    sourceSubscriptionStatus: text('source_subscription_status'),
+    inviteToken: text('invite_token').notNull().unique(),
+    inviteSentAt: timestamp('invite_sent_at'),
+    inviteOpenedAt: timestamp('invite_opened_at'),
+    convertedAt: timestamp('converted_at'),
+    status: migrationContactStatusEnum('status').default('pending').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex('migration_contacts_token_idx').on(table.inviteToken),
+    jobEmailUnique: unique('migration_contacts_job_email_unique').on(table.jobId, table.email),
+  })
+);
+
+export const migrationJobsRelations = relations(migrationJobs, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [migrationJobs.creatorId],
+    references: [users.id],
+  }),
+  publication: one(publications, {
+    fields: [migrationJobs.publicationId],
+    references: [publications.id],
+  }),
+  contacts: many(migrationContacts),
+}));
+
+export const migrationContactsRelations = relations(migrationContacts, ({ one }) => ({
+  job: one(migrationJobs, {
+    fields: [migrationContacts.jobId],
+    references: [migrationJobs.id],
+  }),
+}));
+
+export type MigrationJob = typeof migrationJobs.$inferSelect;
+export type NewMigrationJob = typeof migrationJobs.$inferInsert;
+export type MigrationContact = typeof migrationContacts.$inferSelect;
+export type NewMigrationContact = typeof migrationContacts.$inferInsert;
+

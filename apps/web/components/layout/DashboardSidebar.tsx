@@ -16,6 +16,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/lib/stores/uiStore';
@@ -27,6 +28,7 @@ const sidebarLinks = [
   { href: '/dashboard/subscribers', label: 'Subscribers', icon: Users },
   { href: '/dashboard/vault', label: 'The Vault', icon: BookOpen },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
+  { href: '/dashboard/migration', label: 'Migration', icon: ArrowLeftRight },
 ];
 
 export default function DashboardSidebar() {

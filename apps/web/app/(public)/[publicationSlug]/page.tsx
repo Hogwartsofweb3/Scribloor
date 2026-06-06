@@ -6,6 +6,7 @@ import { db, publications, posts, users, eq, and, desc } from '@solscribe/db';
 import { getServerUserFromCookies } from '@/lib/auth/privy';
 import PublicationPostsList from '@/components/publication/PublicationPostsList';
 import SubscriptionCard from '@/components/publication/SubscriptionCard';
+import MigrationTrigger from '@/components/publication/MigrationTrigger';
 
 export const revalidate = 60;
 
@@ -102,6 +103,12 @@ export default async function PublicPublicationPage({ params }: PublicationPageP
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--color-bg-primary)]">
+      <MigrationTrigger
+        publicationId={pub.id}
+        publicationName={pub.name}
+        publicationPrice={Number(pub.monthlyPriceUsdc || 0)}
+        creatorName={creator.displayName || creator.username}
+      />
       {/* Hero Section */}
       <section className="relative w-full h-[320px] select-none overflow-hidden">
         {pub.coverImageUrl ? (

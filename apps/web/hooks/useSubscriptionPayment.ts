@@ -20,6 +20,7 @@ interface UseSubscriptionPaymentReturn {
   initiatePayment: (publicationId: string) => Promise<void>;
   status: PaymentStatus;
   txSignature: string | null;
+  subscriptionId: string | null;
   error: string | null;
   reset: () => void;
 }
@@ -29,11 +30,13 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   const { user: privyUser } = usePrivy();
   const [status, setStatus] = useState<PaymentStatus>('idle');
   const [txSignature, setTxSignature] = useState<string | null>(null);
+  const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reset = useCallback(() => {
     setStatus('idle');
     setTxSignature(null);
+    setSubscriptionId(null);
     setError(null);
   }, []);
 
@@ -72,12 +75,14 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
           throw new Error(msg ?? 'Failed to initiate subscription');
         }
 
-        const { amount, creatorWallet, subscriptionId } =
+        const { amount, creatorWallet, subscriptionId: subId } =
           (await initiateRes.json()) as {
             amount: number;
             creatorWallet: string;
             subscriptionId: string;
           };
+        
+        setSubscriptionId(subId);
 
         // ── Step 2: Build the unsigned transaction ────────────────────────
         const connection = getConnection();
@@ -120,7 +125,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
         const confirmRes = await fetch('/api/subscription/confirm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ txSignature: signature, subscriptionId }),
+          body: JSON.stringify({ txSignature: signature, subscriptionId: subId }),
         });
 
         if (!confirmRes.ok) {
@@ -138,5 +143,5 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     [publicKey, privyUser, signTransaction]
   );
 
-  return { initiatePayment, status, txSignature, error, reset };
+  return { initiatePayment, status, txSignature, subscriptionId, error, reset };
 }

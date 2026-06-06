@@ -25,10 +25,10 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function SubscribeModal() {
-  const { isOpen, publicationId, publicationName, publicationPrice, close } = useSubscribeModal();
+  const { isOpen, publicationId, publicationName, publicationPrice, migrationToken, migrationCreatorName, close } = useSubscribeModal();
   const { authenticated, login, user: privyUser } = usePrivy();
   const { balance, isLoading: balanceLoading, refetch: refetchBalance } = useWalletBalance();
-  const { initiatePayment, status: paymentStatus, txSignature, error: paymentError, reset: resetPayment } = useSubscriptionPayment();
+  const { initiatePayment, status: paymentStatus, txSignature, subscriptionId, error: paymentError, reset: resetPayment } = useSubscriptionPayment();
   const { select } = useWallet();
 
   const [activeScreen, setActiveScreen] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1);
@@ -66,6 +66,24 @@ export default function SubscribeModal() {
       resetPayment();
     }
   }, [isOpen, authenticated, refetchBalance, resetPayment]);
+
+  // Trigger conversion callback on successful checkout if in migration flow
+  useEffect(() => {
+    if (paymentStatus === 'success' && migrationToken && subscriptionId) {
+      const reportConversion = async () => {
+        try {
+          await fetch(`/api/migration/invite/${migrationToken}/convert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscriptionId }),
+          });
+        } catch (err) {
+          console.error('[Migration checkout] Error reporting conversion:', err);
+        }
+      };
+      reportConversion();
+    }
+  }, [paymentStatus, migrationToken, subscriptionId]);
 
   if (!isOpen) return null;
 
@@ -138,7 +156,9 @@ export default function SubscribeModal() {
               </div>
               <div>
                 <h3 className="text-xl font-extrabold text-zinc-100 font-serif leading-snug">
-                  Subscribe to {publicationName}
+                  {migrationToken
+                    ? `${migrationCreatorName || 'The creator'} has invited you to continue your subscription on Solscribe`
+                    : `Subscribe to ${publicationName}`}
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1 leading-normal max-w-xs mx-auto">
                   Unlock premium articles for <span className="font-semibold text-zinc-200">${price} USDC/month</span>.
