@@ -28,7 +28,8 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**",
-        "dist/**"
+        "dist/**",
+        "apps/web/.next/**"
       ]
     },
     "lint": {
