@@ -7,6 +7,7 @@ import { verifySubscriptionTx } from '@/lib/solana/verify';
 import { sendSubscriptionWelcomeEmail } from '@/lib/email/subscription';
 import { PLATFORM_FEE_BPS, PLATFORM_FEE_WALLET } from '@/lib/solana/constants';
 import type { HeliusWebhookPayload, EnhancedTransaction } from '@/types/helius';
+import { redis } from '@/lib/redis';
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
@@ -172,6 +173,24 @@ async function processSingleTransaction(tx: EnhancedTransaction): Promise<void> 
         })
         .where(eq(publications.id, pendingSubscription.publicationId));
     });
+
+    // Pushing real-time notification to Redis for SSE stream
+    try {
+      const creatorId = pendingSubscription.publication.ownerId;
+      const userEventKey = `events:user:${creatorId}`;
+      const amount = String(actualAmount + actualFeeAmount);
+      await redis.rpush(userEventKey, {
+        type: 'new_subscription',
+        payload: {
+          wallet: pendingSubscription.subscriberWallet,
+          amount,
+          publicationName: pendingSubscription.publication.name,
+        },
+      });
+      console.info(`[helius-webhook] Real-time notification event pushed to Redis for user ${creatorId}`);
+    } catch (redisErr) {
+      console.error('[helius-webhook] Failed to push Redis notification:', redisErr);
+    }
 
     // ── g) Send welcome email (best-effort — don't fail the webhook) ───────
     const subscriberEmail =

@@ -359,6 +359,24 @@ export async function GET(request: NextRequest) {
       totalPaid: txSumMap.get(sub.id) || 0,
     }));
 
+    const calculateReadTime = (html: string | null) => {
+      const text = html?.replace(/<[^>]*>/g, '') || '';
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      return Math.max(1, Math.ceil(words / 225));
+    };
+
+    const topPostsData = [...allPosts]
+      .filter((p) => p.status === 'published')
+      .sort((a, b) => b.viewCount - a.viewCount)
+      .slice(0, 5)
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        viewCount: p.viewCount,
+        readTime: calculateReadTime(p.contentHtml),
+        slug: p.slug,
+      }));
+
     return NextResponse.json({
       success: true,
       subscribers: {
@@ -387,7 +405,8 @@ export async function GET(request: NextRequest) {
       subscriberGrowth: timelineData.map((t) => ({ date: t.date, count: t.subscribers })),
       revenueTimeline: timelineData.map((t) => ({ date: t.date, gross: t.gross, net: t.net })),
       subscribersList,
-      recentActivity: activityFeed.slice(0, 10),
+      recentActivity: activityFeed.slice(0, 15),
+      topPosts: topPostsData,
     });
   } catch (error) {
     console.error('Error compiling creator dashboard stats:', error);

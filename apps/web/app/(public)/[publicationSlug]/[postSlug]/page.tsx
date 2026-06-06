@@ -1,285 +1,290 @@
-"use client";
-
-import React, { useState, useEffect } from 'react';
-import { notFound, useParams } from 'next/navigation';
+import React from 'react';
+import { notFound } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
-import { usePrivy } from '@privy-io/react-auth';
-import { Button } from '@/components/ui/button';
-import { PaywallGate } from '@/components/shared/PaywallGate';
-import { PostCard } from '@/components/shared/PostCard';
-import {
-  Calendar,
-  Clock,
-  Share2,
-  Twitter,
-  Link2,
-  Check,
-  Eye,
-  Globe,
-  ArrowLeft,
-  ChevronRight,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import DOMPurify from 'isomorphic-dompurify';
+import { db, publications, posts, users, eq, and, desc, ne } from '@solscribe/db';
+import PostReaderContent from '@/components/publication/PostReaderContent';
 
-export default function EditorialReaderPage() {
-  const params = useParams();
-  const publicationSlug = params?.publicationSlug as string;
-  const postSlug = params?.postSlug as string;
+export const revalidate = 60;
 
-  const { authenticated } = usePrivy();
-
-  // Content states
-  const [post, setPost] = useState<any>(null);
-  const [pub, setPub] = useState<any>(null);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-
-  const fetchPostContent = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/posts/${publicationSlug}/${postSlug}`);
-      if (!res.ok) {
-        if (res.status === 404) {
-          notFound();
-        }
-        throw new Error('Failed to load post content');
-      }
-      const data = await res.json();
-      setPost(data);
-
-      // Load associated publication
-      const pubRes = await fetch(`/api/publications/${publicationSlug}`);
-      if (pubRes.ok) {
-        const pubData = await pubRes.json();
-        setPub(pubData.publication);
-
-        // Fetch up to 3 more posts from this publication for recommendation
-        const moreRes = await fetch(`/api/posts`);
-        if (moreRes.ok) {
-          const moreData = await moreRes.json();
-          // Filter to this pub and exclude current post
-          const recs = (moreData.posts || [])
-            .filter((p: any) => p.slug !== postSlug)
-            .slice(0, 3);
-          setRecommendations(recs);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching dynamic post content:', err);
-    } finally {
-      setLoading(false);
-    }
+interface PostPageProps {
+  params: {
+    publicationSlug: string;
+    postSlug: string;
   };
+}
 
-  useEffect(() => {
-    if (publicationSlug && postSlug) {
-      fetchPostContent();
-    }
-  }, [publicationSlug, postSlug, authenticated]);
+// Generate static build paths for all published posts
+export async function generateStaticParams() {
+  try {
+    const publishedPosts = await db
+      .select({
+        postSlug: posts.slug,
+        publicationSlug: publications.slug,
+      })
+      .from(posts)
+      .innerJoin(publications, eq(posts.publicationId, publications.id))
+      .where(eq(posts.status, 'published'));
 
-  const handleCopyLink = () => {
-    if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleTwitterShare = () => {
-    if (typeof window === 'undefined' || !post) return;
-    const shareText = encodeURIComponent(`Check out "${post.title}" on Solscribe! 🚀`);
-    const shareUrl = encodeURIComponent(window.location.href);
-    window.open(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`, '_blank');
-  };
-
-  const calculateReadTime = (html: string) => {
-    const text = html?.replace(/<[^>]*>/g, '') || '';
-    const words = text.trim().split(/\s+/).filter(Boolean).length;
-    return Math.max(1, Math.ceil(words / 225));
-  };
-
-  const [scrollProgress, setScrollProgress] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const totalScroll = document.documentElement.scrollTop;
-      const windowHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      const scroll = `${(totalScroll / windowHeight) * 100}`;
-      setScrollProgress(Number(scroll));
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[500px] p-6 text-zinc-500 select-none">
-        <div className="w-8 h-8 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin mb-4" />
-        <span className="text-xs font-mono uppercase tracking-widest text-zinc-400">
-          Unlocking Article...
-        </span>
-      </div>
-    );
+    return publishedPosts.map((p) => ({
+      publicationSlug: p.publicationSlug,
+      postSlug: p.postSlug,
+    }));
+  } catch (err) {
+    console.error('Error generating static parameters for posts:', err);
+    return [];
   }
+}
+
+// Generate metadata dynamically for SEO
+export async function generateMetadata({ params }: PostPageProps) {
+  const { publicationSlug, postSlug } = params;
+
+  const pub = await db.query.publications.findFirst({
+    where: eq(publications.slug, publicationSlug),
+  });
+
+  if (!pub) return { title: 'Publication Not Found | Solscribe' };
+
+  const post = await db.query.posts.findFirst({
+    where: and(
+      eq(posts.slug, postSlug),
+      eq(posts.publicationId, pub.id),
+      eq(posts.status, 'published')
+    ),
+  });
+
+  if (!post) return { title: 'Post Not Found | Solscribe' };
+
+  return {
+    title: `${post.title} | ${pub.name}`,
+    description: post.subtitle || `Read ${post.title} on ${pub.name}.`,
+    openGraph: {
+      title: post.title,
+      description: post.subtitle || `Read ${post.title} on ${pub.name}.`,
+      images: post.coverImageUrl ? [{ url: post.coverImageUrl }] : [],
+      type: 'article',
+      publishedTime: post.publishedAt?.toISOString(),
+    },
+  };
+}
+
+export default async function PublicPostPage({ params }: PostPageProps) {
+  const { publicationSlug, postSlug } = params;
+
+  // 1. Fetch publication
+  const pub = await db.query.publications.findFirst({
+    where: eq(publications.slug, publicationSlug),
+  });
+
+  if (!pub || !pub.isPublished) {
+    notFound();
+  }
+
+  // 2. Fetch post
+  const post = await db.query.posts.findFirst({
+    where: and(
+      eq(posts.slug, postSlug),
+      eq(posts.publicationId, pub.id),
+      eq(posts.status, 'published')
+    ),
+  });
 
   if (!post) {
-    return notFound();
+    notFound();
   }
 
+  // 3. Fetch author
+  const author = await db.query.users.findFirst({
+    where: eq(users.id, pub.ownerId),
+  });
+
+  if (!author) {
+    notFound();
+  }
+
+  // 4. Fetch up to 3 recommendations (other published posts from same publication)
+  const dbRecommendations = await db.query.posts.findMany({
+    where: and(
+      eq(posts.publicationId, pub.id),
+      eq(posts.status, 'published'),
+      ne(posts.id, post.id)
+    ),
+    orderBy: [desc(posts.publishedAt)],
+    limit: 3,
+  });
+
+  // Calculate read time
+  const wordCount = (post.contentHtml || '').replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length;
+  const readTime = Math.max(1, Math.ceil(wordCount / 225));
+
   const formattedDate = post.publishedAt
-    ? new Date(post.publishedAt).toLocaleDateString('en-US', {
+    ? post.publishedAt.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       })
     : 'Draft';
 
-  return (
-    <article className="flex flex-col min-h-screen relative pb-safe">
-      {/* Reading Progress Bar */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-zinc-900 z-50">
-        <div 
-          className="h-full bg-amber-500 transition-all duration-150 ease-out"
-          style={{ width: `${scrollProgress}%` }}
-        />
-      </div>
+  // Format recommendations for PostCard
+  const formattedRecs = dbRecommendations.map((rec) => ({
+    id: rec.id,
+    title: rec.title,
+    subtitle: rec.subtitle,
+    slug: rec.slug,
+    coverImageUrl: rec.coverImageUrl,
+    contentHtml: rec.contentHtml || '',
+    isPaywalled: rec.isPaywalled,
+    publishedAt: rec.publishedAt ? rec.publishedAt.toISOString() : null,
+    viewCount: rec.viewCount,
+  }));
 
-      {/* Article Schema JSON-LD */}
+  // Schema.org Article JSON-LD
+  const articleSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'NewsArticle',
+    headline: post.title,
+    description: post.subtitle || '',
+    image: post.coverImageUrl ? [post.coverImageUrl] : [],
+    datePublished: post.publishedAt?.toISOString(),
+    dateModified: post.publishedAt?.toISOString(),
+    author: [
+      {
+        '@type': 'Person',
+        name: author.displayName || author.username,
+      },
+    ],
+    publisher: {
+      '@type': 'Organization',
+      name: pub.name,
+      logo: {
+        '@type': 'ImageObject',
+        url: pub.coverImageUrl || '',
+      },
+    },
+  };
+
+  const truncatedTitle = post.title.length > 25 ? `${post.title.substring(0, 25)}...` : post.title;
+
+  return (
+    <article className="min-h-screen bg-[var(--color-bg-primary)] py-8 font-sans">
+      {/* Schema.org JSON-LD */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "BlogPosting",
-            "headline": post.title,
-            "description": post.subtitle || "",
-            "image": post.coverImageUrl ? [post.coverImageUrl] : [],
-            "datePublished": post.publishedAt,
-            "author": [{
-              "@type": "Person",
-              "name": pub?.name || "Solscribe Author"
-            }]
-          })
-        }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
 
-      {/* Hero Header */}
-      <div className="max-w-4xl mx-auto px-4 pt-12 pb-6 w-full select-none">
-        {/* Back Link */}
-        <Link href={`/${publicationSlug}`} className="inline-flex items-center text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition mb-6">
-          <ArrowLeft className="w-4 h-4 mr-1.5" /> Back to {pub?.name || 'publication'}
-        </Link>
+      {/* Reading container: max-width 680px, margin 0 auto */}
+      <div className="max-w-[680px] mx-auto px-5 md:px-10">
+        
+        {/* Top bar (above the article): breadcrumb style */}
+        <nav className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] font-mono select-none mb-6">
+          <Link href={`/${pub.slug}`} className="hover:text-[var(--color-text-primary)] transition-colors">
+            {pub.name}
+          </Link>
+          <span>/</span>
+          <span className="text-[var(--color-text-secondary)] truncate" title={post.title}>
+            {truncatedTitle}
+          </span>
+        </nav>
 
-        {/* Cover Photo */}
+        {/* Cover image (full reading width, max 420px height) */}
         {post.coverImageUrl && (
-          <div className="relative rounded-2xl border border-zinc-800 overflow-hidden mb-8 max-h-[400px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+          <div className="relative w-full h-[240px] md:h-[360px] max-h-[420px] rounded-[10px] overflow-hidden border border-[var(--color-border)] mb-8 select-none">
+            <Image
               src={post.coverImageUrl}
               alt={post.title}
-              className="w-full object-cover max-h-[400px]"
+              fill
+              priority
+              unoptimized
+              className="object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent" />
           </div>
         )}
 
-        <div className="max-w-[680px] mx-auto flex flex-col gap-4">
-          <h1 className="text-3xl sm:text-5xl font-black font-serif text-zinc-100 leading-[1.1] tracking-tight">
+        {/* Article header */}
+        <header className="mb-8 select-none">
+          <span className="text-[12px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider block">
+            {pub.name}
+          </span>
+          
+          <h1 className="font-serif font-semibold text-3xl md:text-[42px] leading-[1.25] text-[var(--color-text-primary)] mt-3">
             {post.title}
           </h1>
 
           {post.subtitle && (
-            <p className="text-base sm:text-lg text-zinc-400 font-medium leading-relaxed">
+            <p className="text-lg md:text-[20px] text-[var(--color-text-secondary)] leading-[1.5] mt-2 font-normal">
               {post.subtitle}
             </p>
           )}
 
-          {/* Author Byline & Social Metadata */}
-          <div className="flex items-center justify-between gap-4 py-4 border-y border-zinc-900 mt-2 text-xs text-zinc-500 font-mono">
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-zinc-600" />
-                {formattedDate}
-              </span>
-              <span className="text-zinc-800">•</span>
-              <span className="flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-zinc-600" />
-                {calculateReadTime(post.contentToShow)} min read
-              </span>
-            </div>
+          {/* Author row */}
+          <div className="flex items-center gap-3 mt-6 border-t border-b border-[var(--color-border)] py-4 flex-wrap">
+            {author.avatarUrl ? (
+              <div className="relative w-[36px] h-[36px] rounded-full overflow-hidden border border-[var(--color-border-strong)] shrink-0">
+                <Image
+                  src={author.avatarUrl}
+                  alt={author.displayName || author.username}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-[36px] h-[36px] rounded-full bg-[var(--color-brand-50)] dark:bg-zinc-900 border border-[var(--color-border)] flex items-center justify-center font-bold text-[var(--color-brand-500)] text-xs shrink-0">
+                {(author.displayName || author.username).charAt(0).toUpperCase()}
+              </div>
+            )}
 
-            {/* Sharing Bar */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleTwitterShare}
-                className="p-2 rounded-lg border border-zinc-850 hover:border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-sky-400 transition"
-                title="Share on Twitter"
+            <div className="flex items-center gap-1.5 text-[14px] text-[var(--color-text-secondary)]">
+              <span className="font-medium text-[var(--color-text-primary)]">
+                {author.displayName || author.username}
+              </span>
+              <span>in</span>
+              <Link
+                href={`/${pub.slug}`}
+                className="text-[var(--color-brand-500)] font-semibold hover:underline"
               >
-                <Twitter className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="p-2 rounded-lg border border-zinc-850 hover:border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-amber-500 transition relative"
-                title="Copy Link"
-              >
-                {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Link2 className="w-4 h-4" />}
-              </button>
+                {pub.name}
+              </Link>
+              <span className="text-[var(--color-text-muted)]">•</span>
+              <span className="text-[var(--color-text-muted)] font-mono">{formattedDate}</span>
+              <span className="text-[var(--color-text-muted)]">•</span>
+              <span className="text-[var(--color-text-muted)] font-mono">{readTime} min read</span>
             </div>
           </div>
-        </div>
-      </div>
+        </header>
 
-      {/* Main Editorial Canvas (Max-width 680px Centered) */}
-      <div className="max-w-[680px] mx-auto px-4 py-4 w-full flex flex-col gap-6">
-        {/* Render HTML content safely inside styled prose Serif typography */}
-        <div
-          className="prose prose-invert prose-serif prose-amber max-w-none text-zinc-200 leading-relaxed font-serif text-[17px]"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.contentToShow) }}
+        {/* Dynamic client content reader */}
+        <PostReaderContent
+          post={{
+            id: post.id,
+            title: post.title,
+            subtitle: post.subtitle,
+            slug: post.slug,
+            coverImageUrl: post.coverImageUrl,
+            contentHtml: post.contentHtml || '',
+            previewHtml: post.previewHtml,
+            isPaywalled: post.isPaywalled,
+            publicationId: post.publicationId,
+          }}
+          publication={{
+            id: pub.id,
+            name: pub.name,
+            slug: pub.slug,
+            monthlyPriceUsdc: pub.monthlyPriceUsdc,
+            subscriberCount: pub.subscriberCount,
+          }}
+          author={{
+            displayName: author.displayName,
+            username: author.username,
+            avatarUrl: author.avatarUrl,
+            bio: author.bio,
+          }}
+          recommendations={formattedRecs}
         />
 
-        {/* Interactive Paywall Gate Overlay */}
-        {!post.hasFullAccess && post.subscriptionRequired && (
-          <PaywallGate
-            publicationId={post.publicationId}
-            subscriptionPrice={post.subscriptionPrice || 0}
-          />
-        )}
       </div>
-
-      {/* Recommendation Roster Footer */}
-      {recommendations.length > 0 && (
-        <section className="border-t border-zinc-900 bg-zinc-950/20 py-16 mt-16 select-none">
-          <div className="max-w-4xl mx-auto px-4 flex flex-col gap-8 w-full">
-            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest font-mono border-b border-zinc-900 pb-2">
-              📚 More from {pub?.name || 'this publication'}
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {recommendations.map((rec) => (
-                <PostCard
-                  key={rec.id}
-                  post={{
-                    id: rec.id,
-                    title: rec.title,
-                    subtitle: rec.subtitle,
-                    slug: rec.slug,
-                    coverImageUrl: rec.coverImageUrl,
-                    contentHtml: rec.contentHtml || '',
-                    isPaywalled: rec.isPaywalled,
-                    publishedAt: rec.publishedAt,
-                    viewCount: rec.viewCount,
-                  }}
-                  publicationSlug={publicationSlug}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
     </article>
   );
 }

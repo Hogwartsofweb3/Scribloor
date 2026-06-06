@@ -20,10 +20,11 @@ export interface PostCardData {
 interface PostCardProps {
   post: PostCardData;
   publicationSlug: string;
+  variant?: 'grid' | 'full';
   className?: string;
 }
 
-export function PostCard({ post, publicationSlug, className }: PostCardProps) {
+export function PostCard({ post, publicationSlug, variant = 'grid', className }: PostCardProps) {
   const {
     title,
     subtitle,
@@ -50,6 +51,67 @@ export function PostCard({ post, publicationSlug, className }: PostCardProps) {
         day: 'numeric',
       })
     : 'Draft';
+
+  if (variant === 'full') {
+    return (
+      <div className={cn('w-full py-6 select-none', className)}>
+        <Link href={`/${publicationSlug}/${slug}`} className="group block space-y-4">
+          {/* Cover Image */}
+          {coverImageUrl ? (
+            <div className="relative w-full aspect-[16/9] max-h-[200px] overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={coverImageUrl}
+                alt={title}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+              />
+            </div>
+          ) : (
+            <div className="relative w-full aspect-[16/9] max-h-[200px] bg-gradient-to-br from-[var(--color-bg-secondary)] to-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-xl flex items-center justify-center overflow-hidden">
+              <Globe className="w-8 h-8 text-[var(--color-text-muted)] opacity-40 group-hover:text-[var(--color-brand-500)] transition duration-500" />
+            </div>
+          )}
+
+          {/* Tag row */}
+          <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
+            <span>{formattedDate}</span>
+            <span>•</span>
+            <span>{readTime} min read</span>
+            <span>•</span>
+            <span
+              className={cn(
+                'px-2 py-0.5 text-[10px] font-bold rounded-full border tracking-wide uppercase flex items-center gap-1 select-none',
+                isPaywalled
+                  ? 'text-amber-600 border-amber-500/20 bg-amber-500/5'
+                  : 'text-emerald-600 border-emerald-500/20 bg-emerald-500/5'
+              )}
+            >
+              {isPaywalled ? (
+                <>
+                  <Lock className="w-2.5 h-2.5 text-amber-500" /> Paid
+                </>
+              ) : (
+                'Free'
+              )}
+            </span>
+          </div>
+
+          {/* Title & Subtitle */}
+          <div className="space-y-2">
+            <h3 className="text-xl font-semibold font-sans text-[var(--color-text-primary)] group-hover:text-[var(--color-brand-500)] group-hover:underline decoration-[var(--color-brand-500)] transition duration-300">
+              {title}
+            </h3>
+            {subtitle && (
+              <p className="text-[15px] text-[var(--color-text-secondary)] leading-relaxed line-clamp-2">
+                {subtitle}
+              </p>
+            )}
+          </div>
+        </Link>
+        <hr className="border-[var(--color-border)] mt-6" />
+      </div>
+    );
+  }
 
   return (
     <Link href={`/${publicationSlug}/${slug}`}>
