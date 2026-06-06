@@ -1,61 +1,135 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
   Wallet,
   BookOpen,
   ArrowRight,
-  CheckCircle,
+  Check,
+  CheckCircle2,
   FileText,
   DollarSign,
   Compass,
   AlertCircle,
   Loader2,
+  Copy,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import { useUser } from '@/hooks/useUser';
+
+// Tabler Circle Check Icon SVG
+const CheckIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="w-4 h-4 stroke-current"
+    viewBox="0 0 24 24"
+    strokeWidth="2.5"
+    fill="none"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M5 12l5 5l10 -10" />
+  </svg>
+);
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, linkWallet, ready } = usePrivy();
+  const queryClient = useQueryClient();
+  const { user: privyUser, ready, createWallet, linkWallet } = usePrivy();
+  const { dbUser, isLoading: userLoading } = useUser();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form states for Step 3: Create Publication
+  // Form states for Step 1: Profile
+  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
+
+  // Form states for Step 2: Wallet
+  const [walletLoading, setWalletLoading] = useState(false);
+
+  // Form states for Step 3: Publication
   const [pubName, setPubName] = useState('');
   const [pubSlug, setPubSlug] = useState('');
   const [pubDesc, setPubDesc] = useState('');
+  const [isPaid, setIsPaid] = useState(false);
   const [pubPrice, setPubPrice] = useState('5.00');
-  const [coverUrl, setCoverUrl] = useState('');
-  const [isCheckingSlug, setIsCheckingSlug] = useState(false);
-  const [slugError, setSlugError] = useState<string | null>(null);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
 
-  // Fetch current publication state to see if they're already onboarded
-  const { data: pubData, isLoading: pubLoading } = useQuery({
-    queryKey: ['my-publication'],
-    queryFn: async () => {
-      const res = await fetch('/api/publications');
-      if (!res.ok) throw new Error('Failed to fetch publication');
-      return res.json();
-    },
-    enabled: ready && !!user,
-  });
+  // Success states for Step 4
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // Redirect to dashboard if they already have a publication
+  // Check if they are already fully onboarded
   useEffect(() => {
-    if (pubData?.publication) {
+    if (ready && dbUser && dbUser.hasCompletedOnboarding) {
       router.push('/dashboard');
     }
-  }, [pubData, router]);
+  }, [ready, dbUser, router]);
 
-  // Autogenerate slug from name
+  // Set initial display name
+  useEffect(() => {
+    if (dbUser) {
+      if (dbUser.displayName) setDisplayName(dbUser.displayName);
+      if (dbUser.username) setUsername(dbUser.username);
+    }
+  }, [dbUser]);
+
+  // Auto-populate username from display name
+  useEffect(() => {
+    if (step === 1 && displayName && !username) {
+      setUsername(
+        displayName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '')
+      );
+    }
+  }, [displayName, username, step]);
+
+  // Real-time username availability check
+  useEffect(() => {
+    if (!username || username.length < 2) {
+      setUsernameAvailable(null);
+      return;
+    }
+    const cleanUsername = username.toLowerCase().replace(/[^a-z0-9_-]+/g, '');
+    if (cleanUsername !== username) {
+      setUsername(cleanUsername);
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingUsername(true);
+      try {
+        const res = await fetch(`/api/account/check-username?username=${cleanUsername}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUsernameAvailable(data.available);
+        } else {
+          setUsernameAvailable(false);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [username]);
+
+  // Auto-generate publication slug from publication name
   useEffect(() => {
     if (step === 3 && pubName && !pubSlug) {
       setPubSlug(
@@ -67,33 +141,53 @@ export default function OnboardingPage() {
     }
   }, [pubName, pubSlug, step]);
 
-  // Check slug uniqueness
+  // Real-time publication slug check
   useEffect(() => {
-    if (!pubSlug) return;
+    if (!pubSlug) {
+      setSlugAvailable(null);
+      return;
+    }
+    const cleanSlug = pubSlug.toLowerCase().replace(/[^a-z0-9-]+/g, '');
+    if (cleanSlug !== pubSlug) {
+      setPubSlug(cleanSlug);
+    }
+
     const timer = setTimeout(async () => {
-      setIsCheckingSlug(true);
-      setSlugError(null);
+      setCheckingSlug(true);
       try {
-        const res = await fetch(`/api/publications/check-slug?slug=${pubSlug}`);
-        const data = await res.json();
-        if (!data.available) {
-          setSlugError('This URL slug is already taken.');
+        const res = await fetch(`/api/publications/check-slug?slug=${cleanSlug}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSlugAvailable(data.available);
+        } else {
+          setSlugAvailable(false);
         }
       } catch (err) {
         console.error(err);
       } finally {
-        setIsCheckingSlug(false);
+        setCheckingSlug(false);
       }
-    }, 500);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [pubSlug]);
 
-  const walletAddress = user?.wallet?.address;
+  const activeWallet = privyUser?.wallet?.address;
+  const isEmbeddedWallet = privyUser?.wallet?.walletClientType === 'embedded';
 
-  // Confetti celebration on completion
+  const handleCreateEmbeddedWallet = async () => {
+    setWalletLoading(true);
+    try {
+      await createWallet();
+    } catch (err) {
+      console.error('Wallet creation error:', err);
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
   const triggerConfetti = () => {
-    const duration = 3 * 1000;
+    const duration = 2.5 * 1000;
     const end = Date.now() + duration;
 
     (function frame() {
@@ -102,14 +196,14 @@ export default function OnboardingPage() {
         angle: 60,
         spread: 55,
         origin: { x: 0 },
-        colors: ['#534AB7', '#14F195', '#F59E0B'],
+        colors: ['#534AB7', '#1D9E75', '#BA7517'],
       });
       confetti({
         particleCount: 3,
         angle: 120,
         spread: 55,
         origin: { x: 1 },
-        colors: ['#534AB7', '#14F195', '#F59E0B'],
+        colors: ['#534AB7', '#1D9E75', '#BA7517'],
       });
 
       if (Date.now() < end) {
@@ -118,35 +212,70 @@ export default function OnboardingPage() {
     })();
   };
 
-  const handleNextStep = () => {
-    if (step === 1) {
-      setStep(2);
-    } else if (step === 2) {
-      if (walletAddress) {
-        setStep(3);
-      } else {
-        linkWallet();
-      }
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: Submit Profile
+  const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!walletAddress) {
-      setError('Please connect your Solana wallet first.');
-      return;
-    }
-    if (!pubName.trim() || !pubSlug.trim()) {
-      setError('Publication name and URL slug are required.');
-      return;
-    }
-    if (slugError) {
-      setError('Please resolve the URL slug conflict.');
-      return;
-    }
+    if (!displayName.trim() || !username.trim()) return;
+    if (usernameAvailable === false) return;
 
     setLoading(true);
     setError(null);
+
+    try {
+      const res = await fetch('/api/account/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName, username }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update profile');
+      }
+
+      // Track step 1 progress
+      await fetch('/api/onboarding/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: 'profile_created' }),
+      });
+
+      setStep(2);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Submit Wallet
+  const handleWalletSubmit = async () => {
+    if (!activeWallet) return;
+
+    setLoading(true);
+    try {
+      await fetch('/api/onboarding/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: 'wallet_connected' }),
+      });
+      setStep(3);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 3: Submit Publication (or Skip)
+  const handlePublicationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pubName.trim() || !pubSlug.trim()) return;
+    if (slugAvailable === false) return;
+
+    setLoading(true);
+    setError(null);
+
+    const payoutAddress = activeWallet || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // Fallback if no wallet
 
     try {
       const res = await fetch('/api/publications', {
@@ -156,402 +285,523 @@ export default function OnboardingPage() {
           name: pubName,
           slug: pubSlug,
           description: pubDesc,
-          monthlyPriceUsdc: parseFloat(pubPrice),
-          payoutWallet: walletAddress,
-          coverImageUrl: coverUrl || null,
-          freeTierEnabled: true,
+          monthlyPriceUsdc: isPaid ? parseFloat(pubPrice) : 0,
+          payoutWallet: payoutAddress,
+          freeTierEnabled: !isPaid,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to launch publication');
+        throw new Error(data.error || 'Failed to create publication');
       }
+
+      // Track step 3 progress
+      await fetch('/api/onboarding/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ step: 'publication_created' }),
+      });
+
+      // Fetch progress check
+      await queryClient.invalidateQueries({ queryKey: ['creator-publication'] });
 
       setStep(4);
       triggerConfetti();
     } catch (err: any) {
-      setError(err.message || 'An error occurred creating your publication.');
+      setError(err.message || 'Failed to create publication');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!ready || pubLoading) {
+  const handleSkipPublication = async () => {
+    setLoading(true);
+    try {
+      // Mark onboarding as complete in database directly
+      await fetch('/api/account/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasCompletedOnboarding: true }),
+      });
+      setStep(4);
+      triggerConfetti();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopyLink = () => {
+    const slug = pubSlug || 'my-pub';
+    const link = `${window.location.origin}/${slug}`;
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  if (!ready || userLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-950 text-zinc-500">
-        <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-        <span className="text-xs font-mono uppercase tracking-widest text-zinc-400">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--color-bg-secondary)] text-[var(--color-text-muted)]">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--color-brand-500)] mb-4" />
+        <span className="text-xs font-mono uppercase tracking-widest animate-pulse">
           Loading Onboarding wizard...
         </span>
       </div>
     );
   }
 
-  // Animation variants
-  const slideVariants = {
-    initial: { opacity: 0, x: 20 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -20 },
-  };
-
   return (
-    <div className="flex-1 flex flex-col justify-center items-center bg-zinc-950 py-10 px-4 min-h-screen relative overflow-hidden">
-      {/* Dynamic colorful decorative background rings */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-primary/5 blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[450px] h-[450px] rounded-full bg-teal-500/5 blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none" />
+    <div className="min-h-screen bg-[var(--color-bg-secondary)] flex flex-col justify-center items-center py-10 px-4 relative overflow-hidden select-none">
+      {/* Decorative gradient blur in background */}
+      <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-[var(--color-brand-500)]/5 blur-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-[var(--color-teal-400)]/5 blur-3xl translate-x-1/2 translate-y-1/2 pointer-events-none" />
 
-      {/* Progress Indicators */}
+      {/* Progress Dots Header */}
       <div className="flex items-center gap-2 mb-8 z-10">
         {[1, 2, 3, 4].map((s) => (
-          <div key={s} className="flex items-center">
+          <React.Fragment key={s}>
             <div
               className={cn(
-                'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 border',
+                'w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300 border',
                 step === s
-                  ? 'bg-primary border-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110'
+                  ? 'bg-[var(--color-brand-500)] border-[var(--color-brand-500)] text-white scale-110 shadow-lg'
                   : step > s
-                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                  ? 'bg-[var(--color-brand-50)] border-[var(--color-brand-500)]/20 text-[var(--color-brand-500)]'
+                  : 'bg-zinc-200 dark:bg-zinc-900 border-transparent text-zinc-400 dark:text-zinc-650'
               )}
             >
-              {step > s ? <CheckCircle className="w-4 h-4" /> : s}
+              {step > s ? <CheckIcon /> : s}
             </div>
             {s < 4 && (
               <div
                 className={cn(
-                  'w-8 sm:w-16 h-0.5 transition-all duration-300',
-                  step > s ? 'bg-emerald-500/30' : 'bg-zinc-800'
+                  'w-10 sm:w-16 h-[1px] transition-all duration-300',
+                  step > s ? 'bg-[var(--color-brand-500)]/55' : 'bg-zinc-350 dark:bg-zinc-800'
                 )}
               />
             )}
-          </div>
+          </React.Fragment>
         ))}
       </div>
 
-      {/* Wizard Card Container */}
-      <div className="w-full max-w-xl bg-zinc-900/40 border border-zinc-800 backdrop-blur-md rounded-3xl p-6 sm:p-10 shadow-2xl z-10 min-h-[400px] flex flex-col justify-between">
+      {/* Card Container */}
+      <div className="w-full max-w-[500px] bg-white dark:bg-[#111110] border border-[var(--color-border)] rounded-[var(--radius-lg)] p-8 shadow-xl z-10 min-h-[420px] flex flex-col justify-between">
         <AnimatePresence mode="wait">
-          {/* STEP 1: Welcome Screen */}
+          {/* STEP 1: Tell us about yourself */}
           {step === 1 && (
             <motion.div
               key="step-1"
-              variants={slideVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -15 }}
+              transition={{ duration: 0.25 }}
               className="space-y-6"
             >
-              <div className="space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary mb-4 shadow-sm">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h1 className="text-3xl font-black tracking-tight text-zinc-100 font-sans leading-tight">
-                  Welcome to Solscribe
-                </h1>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  The crypto-native publishing platform where creators build sovereign newsletters paid directly in USDC on Solana. Let's get your premium publication launched.
+              <div className="space-y-1">
+                <h2 className="font-serif font-bold text-2xl text-[var(--color-text-primary)]">
+                  Tell us about yourself
+                </h2>
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  Configure your primary display name and choose a unique username handle.
                 </p>
               </div>
 
-              <div className="space-y-3 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 text-xs text-zinc-400">
-                <div className="flex gap-3">
-                  <FileText className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-zinc-300 block mb-0.5">Premium Newsletters</span>
-                    Write insights, gate articles with subscription paywalls, and build a dedicated reader roster.
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
+                {error && (
+                  <div className="flex gap-2.5 items-center p-3 bg-red-500/5 border border-[var(--color-error)]/20 text-[var(--color-error)] text-xs rounded-xl">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
                   </div>
-                </div>
-                <div className="flex gap-3 border-t border-zinc-800/60 pt-3">
-                  <DollarSign className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold text-zinc-300 block mb-0.5">Instant Payouts</span>
-                    Readers subscribe using USDC. Payments go directly to your self-custody Solana wallet. No middlemen.
-                  </div>
-                </div>
-              </div>
+                )}
 
-              <Button
-                onClick={handleNextStep}
-                className="w-full h-12 bg-primary hover:bg-primary/95 text-primary-foreground font-bold shadow-lg shadow-primary/20"
-              >
-                Let's Get Started <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+                {/* Display Name */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="e.g. Satoshi Nakamoto"
+                    className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition"
+                  />
+                </div>
+
+                {/* Username */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                      placeholder="satoshi"
+                      className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition pr-10"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+                      {checkingUsername ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-muted)]" />
+                      ) : usernameAvailable !== null && username.length >= 2 ? (
+                        usernameAvailable ? (
+                          <span className="text-[var(--color-teal-400)] text-xs font-bold">Available</span>
+                        ) : (
+                          <span className="text-[var(--color-error)] text-xs font-bold">Taken</span>
+                        )
+                      ) : null}
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Format: lowercase letters, numbers, hyphens, and underscores.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || checkingUsername || usernameAvailable === false || !displayName.trim()}
+                  className="w-full h-12 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition shadow disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Continue
+                </button>
+              </form>
             </motion.div>
           )}
 
-          {/* STEP 2: Connect Wallet */}
+          {/* STEP 2: Set up your wallet */}
           {step === 2 && (
             <motion.div
               key="step-2"
-              variants={slideVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -15 }}
+              transition={{ duration: 0.25 }}
               className="space-y-6"
             >
-              <div className="space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400 mb-4 shadow-sm">
-                  <Wallet className="w-6 h-6" />
-                </div>
-                <h1 className="text-3xl font-black tracking-tight text-zinc-100 font-sans leading-tight">
-                  Connect Solana Wallet
-                </h1>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  We use your Solana wallet to route monthly subscriber payments directly to your self-custody wallet. Connect your wallet to proceed.
+              <div className="space-y-1">
+                <h2 className="font-serif font-bold text-2xl text-[var(--color-text-primary)]">
+                  Set up your wallet
+                </h2>
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  Your wallet receives subscription payments directly in USDC.
                 </p>
               </div>
 
-              {walletAddress ? (
-                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
-                    <div>
-                      <p className="text-xs text-zinc-400 uppercase tracking-wider font-semibold">Wallet Linked</p>
-                      <p className="text-sm font-mono text-zinc-200">
-                        {walletAddress.substring(0, 8)}...{walletAddress.substring(walletAddress.length - 8)}
-                      </p>
+              <div className="space-y-4">
+                {activeWallet ? (
+                  <div className="rounded-[var(--radius-lg)] border border-[var(--color-teal-400)]/20 bg-[var(--color-teal-50)]/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-5 h-5 text-[var(--color-teal-400)] shrink-0" />
+                        <span className="text-sm font-bold text-[var(--color-text-primary)]">Your wallet is ready ✓</span>
+                      </div>
+                      <span className="text-[10px] uppercase font-bold text-[var(--color-teal-800)] bg-[var(--color-teal-50)] px-2 py-0.5 rounded">
+                        {isEmbeddedWallet ? 'Embedded' : 'External'}
+                      </span>
                     </div>
+                    <p className="font-mono text-xs text-[var(--color-text-secondary)] break-all">
+                      {activeWallet}
+                    </p>
                   </div>
-                  <Button
-                    onClick={linkWallet}
-                    variant="outline"
-                    className="h-8 text-xs font-semibold border-zinc-800 hover:bg-zinc-800 text-zinc-400"
-                  >
-                    Change
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  onClick={linkWallet}
-                  className="w-full py-8 border-2 border-dashed border-zinc-800 hover:border-primary/50 bg-zinc-950/40 rounded-2xl flex flex-col items-center justify-center gap-3 group transition"
-                >
-                  <div className="p-3 bg-zinc-900 rounded-xl group-hover:scale-110 transition duration-350">
-                    <Wallet className="w-6 h-6 text-zinc-500 group-hover:text-primary" />
-                  </div>
-                  <p className="text-sm font-bold text-zinc-300">Link Solana Wallet</p>
-                  <p className="text-xs text-zinc-500 max-w-xs text-center px-4">
-                    Supports Phantom, Solflare, Ledger, or your Privy embedded wallet
-                  </p>
-                </button>
-              )}
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={handleCreateEmbeddedWallet}
+                      disabled={walletLoading}
+                      className="w-full py-5 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition flex flex-col items-center justify-center gap-1.5 shadow"
+                    >
+                      {walletLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <>
+                          <Wallet className="w-5 h-5" />
+                          <span>Create your wallet</span>
+                        </>
+                      )}
+                    </button>
 
-              <Button
-                onClick={handleNextStep}
-                disabled={!walletAddress}
-                className="w-full h-12 bg-primary hover:bg-primary/95 text-primary-foreground font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
-              >
-                {walletAddress ? 'Continue Onboarding' : 'Link Wallet to Continue'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
+                    <button
+                      onClick={linkWallet}
+                      className="w-full h-12 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[var(--color-text-primary)] hover:bg-black/5 dark:hover:bg-white/5 transition text-sm font-semibold"
+                    >
+                      Connect an external wallet
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center gap-4 pt-4 border-t border-[var(--color-border)]">
+                  <button
+                    onClick={handleWalletSubmit}
+                    disabled={!activeWallet || loading}
+                    className="w-full h-12 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition shadow disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    Continue
+                  </button>
+
+                  {!activeWallet && (
+                    <button
+                      onClick={() => setStep(3)}
+                      className="text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition underline"
+                    >
+                      I'll connect a wallet later
+                    </button>
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
 
-          {/* STEP 3: Create Publication */}
+          {/* STEP 3: Create your publication */}
           {step === 3 && (
             <motion.div
               key="step-3"
-              variants={slideVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, x: 15 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -15 }}
+              transition={{ duration: 0.25 }}
               className="space-y-6"
             >
-              <div className="space-y-2">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 shadow-sm">
-                  <BookOpen className="w-6 h-6" />
-                </div>
-                <h1 className="text-3xl font-black tracking-tight text-zinc-100 font-sans leading-tight">
-                  Launch Your Publication
-                </h1>
-                <p className="text-zinc-400 text-sm leading-relaxed">
-                  Configure your primary publication parameters. This sets up your landing page and subscription structure.
+              <div className="space-y-1">
+                <h2 className="font-serif font-bold text-2xl text-[var(--color-text-primary)]">
+                  Create your publication
+                </h2>
+                <p className="text-xs text-[var(--color-text-secondary)]">
+                  Configure your primary publication parameters (optional at onboarding).
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handlePublicationSubmit} className="space-y-4">
                 {error && (
-                  <div className="flex gap-2.5 items-start p-3 bg-rose-950/20 border border-rose-500/20 text-rose-400 text-xs rounded-xl">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="flex gap-2.5 items-center p-3 bg-red-500/5 border border-[var(--color-error)]/20 text-[var(--color-error)] text-xs rounded-xl">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
                     <span>{error}</span>
                   </div>
                 )}
 
                 {/* Name */}
                 <div className="space-y-1.5">
-                  <label htmlFor="pub-name" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    Publication Name *
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Publication Name
                   </label>
                   <input
-                    id="pub-name"
                     type="text"
                     required
                     value={pubName}
                     onChange={(e) => setPubName(e.target.value)}
                     placeholder="e.g. The Solana Sentinel"
-                    className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary/50 transition"
+                    className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition"
                   />
                 </div>
 
                 {/* Slug */}
                 <div className="space-y-1.5">
-                  <label htmlFor="pub-slug" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    Custom URL Slug *
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Slug URL
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-3 text-sm text-zinc-650 font-mono">
-                      solscribe.app/
-                    </span>
                     <input
-                      id="pub-slug"
                       type="text"
                       required
                       value={pubSlug}
-                      onChange={(e) =>
-                        setPubSlug(
-                          e.target.value
-                            .toLowerCase()
-                            .replace(/[^a-z0-9-]+/g, '')
-                        )
-                      }
+                      onChange={(e) => setPubSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                       placeholder="solana-sentinel"
-                      className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-[106px] pr-10 py-3 text-sm text-zinc-200 placeholder:text-zinc-650 font-mono focus:outline-none focus:border-primary/50 transition"
+                      className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition pr-10"
                     />
-                    {isCheckingSlug && (
-                      <Loader2 className="w-4 h-4 animate-spin text-zinc-500 absolute right-3 top-3.5" />
-                    )}
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {checkingSlug ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-[var(--color-text-muted)]" />
+                      ) : pubSlug && slugAvailable !== null ? (
+                        slugAvailable ? (
+                          <span className="text-[var(--color-teal-400)] text-xs font-bold">Available</span>
+                        ) : (
+                          <span className="text-[var(--color-error)] text-xs font-bold">Taken</span>
+                        )
+                      ) : null}
+                    </div>
                   </div>
-                  {slugError && (
-                    <p className="text-[10px] text-rose-400 font-mono">{slugError}</p>
-                  )}
                 </div>
 
                 {/* Description */}
                 <div className="space-y-1.5">
-                  <label htmlFor="pub-desc" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                    Description / Bio
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                    Description
                   </label>
                   <textarea
-                    id="pub-desc"
                     value={pubDesc}
                     onChange={(e) => setPubDesc(e.target.value)}
-                    placeholder="Provide a short description detailing what your newsletter covers..."
+                    placeholder="Tell your readers what your publication covers..."
                     rows={2}
-                    className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-primary/50 transition resize-none"
+                    className="w-full rounded-[var(--radius-md)] border border-[var(--color-border-strong)] bg-[var(--color-bg-secondary)] px-4 py-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-brand-500)] transition resize-none"
                   />
                 </div>
 
-                {/* Price & Cover (Side-by-side) */}
-                <div className="grid grid-cols-3 gap-3">
-                  {/* Monthly price */}
-                  <div className="space-y-1.5 col-span-1">
-                    <label htmlFor="pub-price" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                      Price (USDC)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-3 text-sm text-zinc-500">$</span>
-                      <input
-                        id="pub-price"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        required
-                        value={pubPrice}
-                        onChange={(e) => setPubPrice(e.target.value)}
-                        placeholder="5.00"
-                        className="w-full rounded-xl bg-zinc-950 border border-zinc-800 pl-6 pr-3 py-3 text-sm text-zinc-200 focus:outline-none focus:border-primary/50 transition font-mono"
-                      />
+                {/* Pricing: Free vs Paid Toggle */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Subscription Pricing</span>
+                    <div className="flex items-center gap-1 bg-[var(--color-bg-secondary)] border border-[var(--color-border-strong)] p-0.5 rounded-[var(--radius-sm)]">
+                      <button
+                        type="button"
+                        onClick={() => setIsPaid(false)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs font-bold rounded',
+                          !isPaid ? 'bg-white dark:bg-zinc-800 text-[var(--color-brand-500)] shadow-sm' : 'text-[var(--color-text-muted)]'
+                        )}
+                      >
+                        Free
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsPaid(true)}
+                        className={cn(
+                          'px-2.5 py-1 text-xs font-bold rounded',
+                          isPaid ? 'bg-white dark:bg-zinc-800 text-[var(--color-brand-500)] shadow-sm' : 'text-[var(--color-text-muted)]'
+                        )}
+                      >
+                        Paid
+                      </button>
                     </div>
                   </div>
 
-                  {/* Cover image URL */}
-                  <div className="space-y-1.5 col-span-2">
-                    <label htmlFor="pub-cover" className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                      Cover Image URL
-                    </label>
-                    <input
-                      id="pub-cover"
-                      type="url"
-                      value={coverUrl}
-                      onChange={(e) => setCoverUrl(e.target.value)}
-                      placeholder="https://example.com/cover.jpg"
-                      className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-650 focus:outline-none focus:border-primary/50 transition"
-                    />
-                  </div>
+                  {isPaid && (
+                    <div className="flex items-center gap-2 p-3 rounded-[var(--radius-md)] bg-[var(--color-bg-secondary)] border border-[var(--color-border-strong)] animate-fade-in">
+                      <DollarSign className="w-4 h-4 text-[var(--color-text-muted)] shrink-0" />
+                      <input
+                        type="number"
+                        min="0.5"
+                        step="0.01"
+                        value={pubPrice}
+                        onChange={(e) => setPubPrice(e.target.value)}
+                        placeholder="5.00"
+                        className="bg-transparent border-none w-full text-sm font-bold text-[var(--color-text-primary)] focus:outline-none font-mono"
+                      />
+                      <span className="text-xs font-bold text-[var(--color-text-secondary)] whitespace-nowrap">USDC / Mo</span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="pt-2">
-                  <Button
+                <div className="flex flex-col items-center gap-4 pt-2">
+                  <button
                     type="submit"
-                    disabled={loading || isCheckingSlug || !!slugError}
-                    className="w-full h-12 bg-primary hover:bg-primary/95 text-primary-foreground font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                    disabled={loading || checkingSlug || slugAvailable === false || !pubName.trim() || !pubSlug.trim()}
+                    className="w-full h-12 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition shadow disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Launching Publication...
-                      </>
-                    ) : (
-                      <>
-                        Launch Your Publication <Sparkles className="w-4 h-4" />
-                      </>
-                    )}
-                  </Button>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    Create publication
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSkipPublication}
+                    disabled={loading}
+                    className="text-xs font-semibold text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition underline"
+                  >
+                    Skip for now
+                  </button>
                 </div>
               </form>
             </motion.div>
           )}
 
-          {/* STEP 4: Success Screen */}
+          {/* STEP 4: You're all set */}
           {step === 4 && (
             <motion.div
               key="step-4"
-              variants={slideVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.3 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
               className="space-y-6 text-center"
             >
-              <div className="inline-flex w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/20 items-center justify-center text-emerald-400 mx-auto mb-2 animate-bounce">
-                <CheckCircle className="w-8 h-8" />
+              <div className="inline-flex w-16 h-16 rounded-full bg-[var(--color-teal-50)] dark:bg-emerald-500/10 border-2 border-[var(--color-teal-400)]/20 items-center justify-center text-[var(--color-teal-400)] mx-auto mb-2 animate-bounce">
+                <CheckIcon />
               </div>
 
-              <div className="space-y-2">
-                <h1 className="text-3xl font-black tracking-tight text-zinc-100 font-sans leading-tight">
-                  Publication Launched!
-                </h1>
-                <p className="text-zinc-400 text-sm leading-relaxed max-w-sm mx-auto">
-                  Congratulations! Your premium publication has been successfully launched on Solscribe. Your subscriber portal is active.
+              <div className="space-y-1.5">
+                <h2 className="font-serif font-bold text-2xl text-[var(--color-text-primary)]">
+                  You're all set
+                </h2>
+                {pubName ? (
+                  <p className="text-xs text-[var(--color-text-secondary)]">
+                    Your publication is live at{' '}
+                    <span className="font-mono font-bold text-[var(--color-brand-500)]">
+                      solscribe.app/{pubSlug}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--color-text-secondary)]">
+                    Your Solscribe creator profile has been initialized!
+                  </p>
+                )}
+              </div>
+
+              {/* Checklist */}
+              <div className="text-left border border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-bg-secondary)] p-4 space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                  Next Steps Checklist
                 </p>
+
+                <div className="space-y-2.5 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <span className="w-4 h-4 rounded border border-[var(--color-border-strong)] flex items-center justify-center text-[8px] text-[var(--color-text-muted)] mt-0.5 shrink-0 select-none">
+                      [ ]
+                    </span>
+                    <div>
+                      <Link href="/dashboard/posts/new" className="font-bold text-[var(--color-text-primary)] hover:underline">
+                        Write your first post
+                      </Link>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                        Draft and publish your first newsletter issue.
+                      </p>
+                    </div>
+                  </div>
+
+                  {pubName && (
+                    <div className="flex items-start gap-2.5 border-t border-[var(--color-border)] pt-2.5">
+                      <button
+                        onClick={handleCopyLink}
+                        className="w-4 h-4 rounded border border-[var(--color-border-strong)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] mt-0.5 shrink-0"
+                      >
+                        {copiedLink ? <CheckIcon /> : <Copy className="w-2.5 h-2.5" />}
+                      </button>
+                      <div>
+                        <button onClick={handleCopyLink} className="font-bold text-[var(--color-text-primary)] hover:underline text-left">
+                          {copiedLink ? 'Copied link!' : 'Share your publication'}
+                        </button>
+                        <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                          Copy the link to share on Twitter / Farcaster.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-2.5 border-t border-[var(--color-border)] pt-2.5">
+                    <span className="w-4 h-4 rounded border border-[var(--color-border-strong)] flex items-center justify-center text-[8px] text-[var(--color-text-muted)] mt-0.5 shrink-0 select-none">
+                      [ ]
+                    </span>
+                    <div>
+                      <Link href="/dashboard/settings" className="font-bold text-[var(--color-text-primary)] hover:underline">
+                        Set up payout wallet
+                      </Link>
+                      <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
+                        Ensure your payout destination wallet is configured.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-5 max-w-sm mx-auto space-y-2 text-left">
-                <div className="flex justify-between items-center text-xs border-b border-zinc-800/60 pb-2">
-                  <span className="text-zinc-500 font-medium">NAME</span>
-                  <span className="text-zinc-200 font-semibold">{pubName}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs border-b border-zinc-800/60 pb-2">
-                  <span className="text-zinc-500 font-medium">URL PORTAL</span>
-                  <span className="text-primary font-mono font-semibold">solscribe.app/{pubSlug}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-500 font-medium">PRICE</span>
-                  <span className="text-teal-400 font-semibold font-mono">${parseFloat(pubPrice).toFixed(2)} USDC / Mo</span>
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <Button
-                  onClick={() => router.push('/dashboard')}
-                  className="w-full h-12 bg-primary hover:bg-primary/95 text-primary-foreground font-bold shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
-                >
-                  Enter Creator Dashboard <Compass className="w-4 h-4" />
-                </Button>
-              </div>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="w-full h-12 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition shadow flex items-center justify-center gap-2"
+              >
+                Go to your dashboard
+              </button>
             </motion.div>
           )}
         </AnimatePresence>

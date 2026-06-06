@@ -19,6 +19,7 @@ const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart')
 const SubscriberGrowthChart = dynamic(() => import('@/components/dashboard/SubscriberGrowthChart'), { ssr: false });
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import SubscriberTable from '@/components/dashboard/SubscriberTable';
+import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist';
 
 export default function CreatorDashboard() {
   const [stats, setStats] = useState<any>(null);
@@ -112,6 +113,8 @@ export default function CreatorDashboard() {
           <RefreshCw className="w-3.5 h-3.5" /> Refresh Analytics
         </button>
       </div>
+
+      <OnboardingChecklist />
 
       {/* Stat Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
