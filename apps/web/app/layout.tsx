@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Lora } from 'next/font/google';
+import { Inter, Lora, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import SubscribeModal from '@/components/subscribe/SubscribeModal';
@@ -7,8 +7,24 @@ import SubscribeModal from '@/components/subscribe/SubscribeModal';
 import InstallPrompt from '@/components/shared/InstallPrompt';
 import MobileTabBar from '@/components/layout/MobileTabBar';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const lora = Lora({ subsets: ['latin'], variable: '--font-lora', display: 'swap' });
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+const lora = Lora({
+  subsets: ['latin'],
+  weight: ['400', '600'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -55,12 +71,23 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${lora.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${lora.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link rel="preconnect" href="https://mainnet.helius-rpc.com" />
         <link rel="preconnect" href="https://api.resend.com" />
         <link rel="dns-prefetch" href="https://mainnet.helius-rpc.com" />
         <link rel="dns-prefetch" href="https://api.resend.com" />
+        {/* Google Tag Manager — uncomment when GTM container is ready
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-XXXXXXX');`,
+          }}
+        />
+        */}
       </head>
       <body className={inter.className}>
         <Providers attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>

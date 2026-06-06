@@ -6,16 +6,20 @@ import { useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 
 function LoginContent() {
-  const { isAuthenticated, isLoading, login } = useUser();
+  const { isAuthenticated, isLoading, dbUser, login } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect_url') || '/dashboard';
 
   useEffect(() => {
-    if (isAuthenticated && !isLoading) {
-      router.push(redirectUrl);
+    if (isAuthenticated && !isLoading && dbUser) {
+      if (!dbUser.hasCompletedOnboarding) {
+        router.push('/onboarding');
+      } else {
+        router.push(redirectUrl);
+      }
     }
-  }, [isAuthenticated, isLoading, router, redirectUrl]);
+  }, [isAuthenticated, isLoading, dbUser, router, redirectUrl]);
 
   if (isLoading) {
     return (

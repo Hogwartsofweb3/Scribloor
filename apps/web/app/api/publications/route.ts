@@ -140,6 +140,12 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    // 7. Mark user as onboarded and elevate role to creator
+    await db
+      .update(users)
+      .set({ hasCompletedOnboarding: true, role: 'creator' })
+      .where(eq(users.id, dbUser.id));
+
     return NextResponse.json({
       success: true,
       publication: newPub,

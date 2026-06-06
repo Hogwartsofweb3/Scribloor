@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Paths that require authentication
-  const protectedPrefixes = ['/dashboard', '/account'];
+  const protectedPrefixes = ['/dashboard', '/account', '/onboarding'];
   const isProtected = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
 
   if (isProtected) {

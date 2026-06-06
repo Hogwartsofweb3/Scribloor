@@ -27,6 +27,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/web3.js": "^1.91.4",
     "@solscribe/db": "workspace:*",
+    "@tanstack/react-query": "^5.100.14",
     "@tiptap/core": "^3.23.6",
     "@tiptap/extension-character-count": "^3.23.6",
     "@tiptap/extension-code-block-lowlight": "^3.23.6",

@@ -9,19 +9,7 @@ export const metadata = {
   description: 'Top publications and creators on Solscribe',
 };
 
-async function getLeaderboardData() {
-  try {
-    // Next.js fetch with revalidation (1 hour)
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/leaderboard`, { 
-      next: { revalidate: 3600 } 
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch (err) {
-    console.error('Error fetching leaderboard:', err);
-    return null;
-  }
-}
+import { getLeaderboardData } from '@/lib/api/leaderboard';
 
 export default async function LeaderboardPage() {
   const data = await getLeaderboardData();
