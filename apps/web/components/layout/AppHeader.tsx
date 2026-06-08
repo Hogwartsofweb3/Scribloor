@@ -9,6 +9,7 @@ import { Search, ChevronDown, User, BookOpen, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import NotificationBell from '@/components/ui/NotificationBell';
+import CurrencySelector from '@/components/dashboard/CurrencySelector';
 
 export default function AppHeader() {
   const router = useRouter();
@@ -77,6 +78,7 @@ export default function AppHeader() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3">
+          {user && <CurrencySelector />}
           <ThemeToggle />
           <NotificationBell />
 

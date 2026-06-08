@@ -58,6 +58,7 @@ export const users = pgTable(
     role: roleEnum('role').default('reader').notNull(),
     isLeaderboardOptIn: boolean('is_leaderboard_opt_in').default(false).notNull(),
     hasCompletedOnboarding: boolean('has_completed_onboarding').default(false).notNull(),
+    preferredCurrency: text('preferred_currency').default('USD').notNull(),
     onboardingSteps: jsonb('onboarding_steps').default('[]').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),

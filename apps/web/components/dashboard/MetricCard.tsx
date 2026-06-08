@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 interface MetricCardProps {
   label: string;
-  value: string | number;
+  value: React.ReactNode;
   delta?: string | number | null;
   deltaLabel?: string;
   icon: React.ReactNode;

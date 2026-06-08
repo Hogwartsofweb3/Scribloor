@@ -10,6 +10,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { formatLocalCurrency } from '@/lib/currency/exchangeRates';
+import { DashboardStats } from '@/lib/types/dashboard';
 
 export interface SubscriberItem {
   id: string;
@@ -24,9 +27,16 @@ export interface SubscriberItem {
 
 interface SubscriberTableProps {
   subscribers: SubscriberItem[];
+  exchangeRate?: { currency: string; rate: number } | null;
 }
 
-export default function SubscriberTable({ subscribers }: SubscriberTableProps) {
+export default function SubscriberTable({ subscribers, exchangeRate }: SubscriberTableProps) {
+  const { data: stats } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats'],
+    enabled: false,
+  });
+
+  const resolvedExchange = exchangeRate !== undefined ? exchangeRate : stats?.exchangeRate;
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -177,8 +187,17 @@ export default function SubscriberTable({ subscribers }: SubscriberTableProps) {
                       {sub.status}
                     </span>
                   </td>
-                  <td className="p-3 text-right pr-4 font-mono font-bold text-amber-500">
-                    ${sub.totalPaid.toFixed(2)}
+                  <td className="p-3 pr-4">
+                    <div className="flex flex-col items-end leading-none">
+                      <span className="font-mono font-bold text-amber-500">
+                        {sub.totalPaid.toFixed(2)} USDC
+                      </span>
+                      {resolvedExchange && resolvedExchange.rate && (
+                        <span className="text-[10px] text-zinc-500 font-mono mt-1">
+                          ≈ {formatLocalCurrency(sub.totalPaid * resolvedExchange.rate, resolvedExchange.currency)}
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

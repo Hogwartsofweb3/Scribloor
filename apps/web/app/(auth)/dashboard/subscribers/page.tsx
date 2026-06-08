@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import StatChip from '@/components/dashboard/StatChip';
 import EmptyState from '@/components/dashboard/EmptyState';
+import { formatLocalCurrency } from '@/lib/currency/exchangeRates';
 
 interface Subscriber {
   id: string;
@@ -74,7 +75,8 @@ export default function SubscribersPage() {
   const itemsPerPage = 25;
 
   // 1. Fetch data from dashboard stats (reuses query cache)
-  const { data: stats, isLoading, error, refetch } = useQuery({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stats, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const res = await fetch('/api/dashboard/stats');
@@ -381,8 +383,17 @@ export default function SubscribersPage() {
                             day: 'numeric',
                           })}
                         </td>
-                        <td className="p-4 text-right pr-6 font-mono text-xs text-[var(--color-text-primary)] font-bold">
-                          ${sub.totalPaid.toFixed(2)} USDC
+                        <td className="p-4 pr-6">
+                          <div className="flex flex-col items-end leading-none">
+                            <span className="font-mono text-xs text-[var(--color-text-primary)] font-bold">
+                              {sub.totalPaid.toFixed(2)} USDC
+                            </span>
+                            {stats?.exchangeRate && stats.exchangeRate.rate && (
+                              <span className="text-[10px] text-[var(--color-text-muted)] font-mono mt-1 select-none">
+                                ≈ {formatLocalCurrency(sub.totalPaid * stats.exchangeRate.rate, stats.exchangeRate.currency)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

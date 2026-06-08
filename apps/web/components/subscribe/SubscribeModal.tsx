@@ -21,8 +21,12 @@ import {
   Twitter,
   ChevronRight,
   ArrowRight,
+  ChevronDown,
+  HelpCircle,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { OnrampProvider } from '@/lib/onramp/providers';
 
 export default function SubscribeModal() {
   const { isOpen, publicationId, publicationName, publicationPrice, migrationToken, migrationCreatorName, close } = useSubscribeModal();
@@ -32,6 +36,9 @@ export default function SubscribeModal() {
   const { select } = useWallet();
 
   const [activeScreen, setActiveScreen] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1);
+  const [onrampProviders, setOnrampProviders] = useState<OnrampProvider[]>([]);
+  const [onrampCountry, setOnrampCountry] = useState<string>('your country');
+  const [onrampExpanded, setOnrampExpanded] = useState(false);
 
   // Sync modal lifecycle state on open/close and balance changes
   useEffect(() => {
@@ -66,6 +73,23 @@ export default function SubscribeModal() {
       resetPayment();
     }
   }, [isOpen, authenticated, refetchBalance, resetPayment]);
+
+  // Fetch on-ramp providers when modal opens
+  useEffect(() => {
+    if (!isOpen) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/onramp/providers');
+        if (res.ok) {
+          const data = await res.json();
+          setOnrampProviders(data.providers || []);
+          setOnrampCountry(data.countryName || 'your country');
+        }
+      } catch (err) {
+        console.error('[SubscribeModal] Error fetching on-ramp providers:', err);
+      }
+    })();
+  }, [isOpen]);
 
   // Trigger conversion callback on successful checkout if in migration flow
   useEffect(() => {
@@ -191,31 +215,98 @@ export default function SubscribeModal() {
             </div>
           )}
 
-          {/* SCREEN 3 — Insufficient Balance */}
+          {/* SCREEN 3 — Insufficient Balance with Localized On-Ramp */}
           {activeScreen === 3 && (
-            <div className="flex flex-col items-center justify-center text-center gap-5 pt-4">
-              <div className="p-3 rounded-full bg-rose-500/10 border border-rose-500/10 text-rose-500">
-                <AlertTriangle className="w-6 h-6" />
+            <div className="flex flex-col gap-4 pt-2">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-full bg-rose-500/10 border border-rose-500/10 text-rose-500 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 leading-tight">Insufficient USDC Balance</h3>
+                  <p className="text-[10px] text-zinc-500 leading-normal mt-0.5">
+                    You need <span className="text-zinc-300 font-semibold">{price} USDC</span> but have <span className="text-rose-400 font-bold">{balance?.toFixed(2) || '0.00'} USDC</span>.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-zinc-100">Insufficient USDC Balance</h3>
-                <p className="text-xs text-zinc-500 mt-1 max-w-xs leading-normal">
-                  You need <span className="text-zinc-300 font-semibold">${price} USDC</span> to subscribe, but your current wallet balance is <span className="text-rose-400 font-bold">${balance?.toFixed(2) || '0.00'} USDC</span>.
+
+              {/* On-Ramp Provider Cards */}
+              <div className="flex flex-col gap-2">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 pl-0.5">
+                  Buy USDC in {onrampCountry}
                 </p>
+                {onrampProviders.slice(0, 3).map((provider) => (
+                  <a
+                    key={provider.id}
+                    href={provider.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-xl border border-zinc-800 hover:border-zinc-600 bg-zinc-950/40 hover:bg-zinc-900/60 transition-all group cursor-pointer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={provider.logo}
+                      alt={provider.name}
+                      className="w-9 h-9 rounded-lg shrink-0 object-contain"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-zinc-200 group-hover:text-white transition">{provider.name}</span>
+                        {provider.beginner_friendly && (
+                          <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Recommended</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {provider.paymentMethods.slice(0, 2).map((m) => (
+                          <span key={m} className="text-[9px] text-zinc-500 bg-zinc-900 px-1.5 py-0.5 rounded font-mono">{m}</span>
+                        ))}
+                        <span className="text-[9px] text-zinc-600">{provider.estimatedTime}</span>
+                      </div>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 shrink-0 transition" />
+                  </a>
+                ))}
               </div>
-              <div className="flex flex-col gap-2 w-full mt-2">
-                <a href="https://jup.ag" target="_blank" rel="noopener noreferrer" className="w-full">
-                  <Button className="w-full font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 h-11 rounded-xl">
-                    Swap & Buy USDC on Jupiter <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
+
+              {/* Collapsible: Already have USDC */}
+              <button
+                onClick={() => setOnrampExpanded(!onrampExpanded)}
+                className="flex items-center justify-between w-full px-3 py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-950/20 text-xs text-zinc-400 hover:text-zinc-200 transition-all"
+                type="button"
+              >
+                <span className="flex items-center gap-2">
+                  <Wallet className="w-3.5 h-3.5" />
+                  Already have USDC? Connect your wallet
+                </span>
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', onrampExpanded && 'rotate-180')} />
+              </button>
+
+              {onrampExpanded && (
+                <div className="flex flex-col gap-2 pl-1">
+                  <Button
+                    onClick={() => { refetchBalance(); }}
+                    className="w-full font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 h-10 rounded-xl text-xs"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Refresh Balance
                   </Button>
-                </a>
-                <Button
-                  onClick={login}
-                  className="w-full font-bold bg-zinc-950 hover:bg-zinc-900 text-zinc-400 border border-zinc-900 h-11 rounded-xl"
-                >
-                  Try another wallet
-                </Button>
-              </div>
+                  <Button
+                    onClick={login}
+                    className="w-full font-bold bg-zinc-950 hover:bg-zinc-900 text-zinc-400 border border-zinc-900 h-10 rounded-xl text-xs"
+                  >
+                    Try Another Wallet
+                  </Button>
+                </div>
+              )}
+
+              {/* Help Guide Link */}
+              <a
+                href="/help/buy-usdc"
+                className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-zinc-500 hover:text-amber-400 transition mt-1 select-none"
+              >
+                <HelpCircle className="w-3 h-3" />
+                Need help? Read our full guide to getting USDC
+                <ArrowRight className="w-3 h-3" />
+              </a>
             </div>
           )}
 

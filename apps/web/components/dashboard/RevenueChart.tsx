@@ -11,11 +11,14 @@ import {
   Tooltip,
 } from 'recharts';
 
+import { formatLocalCurrency } from '@/lib/currency/exchangeRates';
+
 interface RevenueChartProps {
   data: { date: string; gross: number; net: number }[];
+  exchangeRate?: { currency: string; rate: number; updatedAt?: string | number } | null;
 }
 
-export default function RevenueChart({ data }: RevenueChartProps) {
+export default function RevenueChart({ data, exchangeRate }: RevenueChartProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -35,11 +38,18 @@ export default function RevenueChart({ data }: RevenueChartProps) {
     );
   }
 
-  // Custom tooltip component — white bg card, border, date + amount USDC + amount USD equiv
+  // Custom tooltip component — white bg card, border, date + amount USDC + local currency equiv
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const netValue = parseFloat(payload[0].value || 0).toFixed(2);
-      
+      const netValue = parseFloat(payload[0].value || 0);
+      const formattedUsdc = `${netValue.toFixed(2)} USDC`;
+
+      let localValueStr = null;
+      if (exchangeRate && exchangeRate.rate) {
+        const localValue = netValue * exchangeRate.rate;
+        localValueStr = formatLocalCurrency(localValue, exchangeRate.currency);
+      }
+
       return (
         <div className="p-3 bg-white dark:bg-[#111110] border border-[var(--color-border-strong)] rounded-lg shadow-md text-xs font-sans text-[var(--color-text-primary)]">
           <p className="font-semibold border-b border-[var(--color-border)] pb-1 mb-1.5 text-[var(--color-text-secondary)]">
@@ -49,15 +59,24 @@ export default function RevenueChart({ data }: RevenueChartProps) {
             <div className="flex items-center justify-between gap-4">
               <span className="text-[var(--color-text-muted)]">Net revenue:</span>
               <span className="font-semibold text-[var(--color-text-primary)]">
-                ${netValue} USDC
+                {formattedUsdc}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-4 text-[10px] text-[var(--color-text-muted)]">
-              <span>USD Equivalent:</span>
-              <span>
-                ${netValue} USD
-              </span>
-            </div>
+            {localValueStr ? (
+              <div className="flex items-center justify-between gap-4 text-[10px] text-[var(--color-text-muted)]">
+                <span>≈ {exchangeRate?.currency} Equivalent:</span>
+                <span className="font-semibold text-[var(--color-text-primary)]">
+                  ≈ {localValueStr}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4 text-[10px] text-[var(--color-text-muted)]">
+                <span>USD Equivalent:</span>
+                <span>
+                  ${netValue.toFixed(2)} USD
+                </span>
+              </div>
+            )}
           </div>
         </div>
       );

@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server';
 import { db, posts, publications, subscriptions, transactions, users, emailSends } from '@solscribe/db';
 import { eq, and, gte, lt, desc, inArray, sql } from '@solscribe/db';
 import { getServerUser } from '@/lib/auth/privy';
+import { getExchangeRates } from '@/lib/currency/exchangeRates';
+import { redis } from '@/lib/redis';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +24,27 @@ export async function GET(request: NextRequest) {
     if (!dbUser) {
       return NextResponse.json({ error: 'Unauthorized: User not found in database' }, { status: 401 });
     }
+
+    // 2.5 Resolve preferred currency exchange rate
+    const preferredCurrency = dbUser.preferredCurrency || 'USD';
+    const rates = await getExchangeRates([preferredCurrency]);
+    let rateUpdatedAt = Date.now();
+    try {
+      const cached = await redis.get<{ fetchedAt: number }>(`exchange_rates:${preferredCurrency}`);
+      if (cached?.fetchedAt) {
+        rateUpdatedAt = cached.fetchedAt;
+      }
+    } catch (err) {
+      console.error('[Dashboard Stats API] Error getting cache fetchedAt:', err);
+    }
+
+    const exchangeRate = (rates && rates[preferredCurrency] !== undefined)
+      ? {
+          currency: preferredCurrency,
+          rate: rates[preferredCurrency],
+          updatedAt: rateUpdatedAt,
+        }
+      : null;
 
     // 3. Resolve publication owned by creator
     const pub = await db.query.publications.findFirst({
@@ -390,6 +413,7 @@ export async function GET(request: NextRequest) {
         allTime: Math.round(allTimeNet * 100) / 100,
         currency: 'USDC',
       },
+      exchangeRate,
       posts: postsStats,
       emailStats,
       recentTransactions: recentTxList.map((tx) => ({

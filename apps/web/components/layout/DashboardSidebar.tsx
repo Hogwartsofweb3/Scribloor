@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { usePrivy } from '@privy-io/react-auth';
 import { motion } from 'framer-motion';
+import { DashboardStats } from '@/lib/types/dashboard';
 import {
   LayoutDashboard,
   FileText,
@@ -21,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/lib/stores/uiStore';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
+import { formatLocalCurrency } from '@/lib/currency/exchangeRates';
 
 const sidebarLinks = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -60,6 +62,17 @@ export default function DashboardSidebar() {
       if (!res.ok) throw new Error('Failed to fetch publication');
       return res.json();
     },
+  });
+
+  // Fetch dashboard stats (uses cached data if already fetched by page)
+  const { data: stats } = useQuery<DashboardStats>({
+    queryKey: ['dashboard-stats'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard/stats');
+      if (!res.ok) throw new Error('Failed to retrieve analytics data');
+      return res.json();
+    },
+    staleTime: 60000,
   });
 
   const publication = pubData?.publication;
@@ -168,11 +181,21 @@ export default function DashboardSidebar() {
               </button>
             </div>
             {/* USDC Balance */}
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-text-muted)]">USDC Balance:</span>
-              <span className="font-bold text-[var(--color-teal-400)]">
-                {balance !== null ? `$${balance.toFixed(2)}` : '—'}
-              </span>
+            <div className="flex flex-col gap-1 pt-1.5 border-t border-[var(--color-border)]">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[var(--color-text-muted)]">USDC Balance:</span>
+                <span className="font-bold text-[var(--color-teal-600)] dark:text-[var(--color-teal-400)] shrink-0">
+                  {balance !== null ? `${balance.toFixed(2)} USDC` : '—'}
+                </span>
+              </div>
+              {balance !== null && stats?.exchangeRate && stats.exchangeRate.rate && (
+                <div className="flex items-center justify-between text-[10px] text-[var(--color-text-muted)] font-mono leading-none">
+                  <span>Local Balance:</span>
+                  <span className="shrink-0">
+                    ≈ {formatLocalCurrency(balance * stats.exchangeRate.rate, stats.exchangeRate.currency)}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

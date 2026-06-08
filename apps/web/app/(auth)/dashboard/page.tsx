@@ -24,13 +24,15 @@ import RevenueChart from '@/components/dashboard/RevenueChart';
 import SubscriberGrowthChart from '@/components/dashboard/SubscriberGrowthChart';
 import RecentActivity from '@/components/dashboard/RecentActivity';
 import TopPosts from '@/components/dashboard/TopPosts';
+import LocalCurrencyAmount from '@/components/dashboard/LocalCurrencyAmount';
 
 export default function CreatorDashboard() {
   const [revenuePeriod, setRevenuePeriod] = useState<'30' | '60' | '90'>('60');
   const [subscribersPeriod, setSubscribersPeriod] = useState<'30' | '60' | '90'>('60');
 
   // 1. Fetch dashboard statistics
-  const { data: stats, isLoading, error, refetch } = useQuery({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: stats, isLoading, error, refetch } = useQuery<any>({
     queryKey: ['dashboard-stats'],
     queryFn: async () => {
       const res = await fetch('/api/dashboard/stats');
@@ -203,7 +205,7 @@ export default function CreatorDashboard() {
         />
         <MetricCard
           label="Monthly Net Revenue"
-          value={`$${stats.revenue.thisMonth.toFixed(2)} USDC`}
+          value={<LocalCurrencyAmount amountUsdc={stats.revenue.thisMonth} />}
           delta={revenueDelta}
           deltaLabel="vs last month"
           icon={<DollarSign className="w-4.5 h-4.5" />}
@@ -246,7 +248,7 @@ export default function CreatorDashboard() {
             </div>
           }
         >
-          <RevenueChart data={filteredRevenueTimeline} />
+          <RevenueChart data={filteredRevenueTimeline} exchangeRate={stats?.exchangeRate} />
         </ChartCard>
 
         {/* Subscriber Growth Chart */}
