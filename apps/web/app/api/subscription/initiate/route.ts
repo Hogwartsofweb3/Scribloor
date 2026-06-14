@@ -51,6 +51,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Guard: creator must configure a payout wallet before subscriptions can be processed
+    if (!publication.payoutWallet) {
+      return NextResponse.json(
+        { error: 'This publication has not configured a payout wallet yet. The creator needs to add one in their Settings before subscriptions can be processed.' },
+        { status: 400 }
+      );
+    }
+
     // ── Check for existing active subscription ───────────────────────────
     const existingActive = await db.query.subscriptions.findFirst({
       where: and(

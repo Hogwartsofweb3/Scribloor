@@ -1,4 +1,3 @@
-import { Nav } from '@/components/landing/Nav';
 import { Hero } from '@/components/landing/Hero';
 import { PainSection } from '@/components/landing/PainSection';
 import { HowItWorks } from '@/components/landing/HowItWorks';
@@ -17,7 +16,6 @@ export const metadata = {
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white selection:bg-indigo-200 selection:text-indigo-900">
-      <Nav />
       <main>
         <Hero />
         <PainSection />

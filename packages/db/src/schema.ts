@@ -19,10 +19,19 @@ export const roleEnum = pgEnum('role', ['reader', 'creator', 'admin']);
 export const postStatusEnum = pgEnum('post_status', ['draft', 'published', 'scheduled']);
 export const subscriptionStatusEnum = pgEnum('subscription_status', ['pending', 'active', 'expired', 'cancelled']);
 export const transactionStatusEnum = pgEnum('transaction_status', ['pending', 'confirmed', 'failed']);
-export const emailStatusEnum = pgEnum('email_status', ['sent', 'bounced', 'opened']);
+export const emailStatusEnum = pgEnum('email_status', ['sent', 'bounced', 'opened', 'complained']);
 export const vaultCategoryEnum = pgEnum('vault_category', ['research', 'report', 'analysis', 'guide', 'data', 'essay']);
 export const vaultEntryStatusEnum = pgEnum('vault_entry_status', ['draft', 'pending_review', 'published', 'rejected']);
 export const vaultAccessTypeEnum = pgEnum('vault_access_type', ['single_purchase', 'vault_pass']);
+export const suppressionReasonEnum = pgEnum('suppression_reason', ['bounce', 'complaint', 'unsubscribe']);
+export const upgradeTriggerEnum = pgEnum('upgrade_trigger', [
+  'milestone_100_subscribers',
+  'milestone_1k_usdc',
+  'feature_attempt_custom_domain',
+  'feature_attempt_analytics',
+  'feature_attempt_nft_gate',
+]);
+export const premiumSubscriptionStatusEnum = pgEnum('premium_subscription_status', ['pending', 'active', 'expired', 'cancelled']);
 export const vaultPassStatusEnum = pgEnum('vault_pass_status', ['pending', 'active', 'expired', 'cancelled']);
 export const vaultRevenueStatusEnum = pgEnum('vault_revenue_status', ['pending', 'paid']);
 export const milestoneTypeEnum = pgEnum('milestone_type', [
@@ -59,6 +68,7 @@ export const users = pgTable(
     isLeaderboardOptIn: boolean('is_leaderboard_opt_in').default(false).notNull(),
     hasCompletedOnboarding: boolean('has_completed_onboarding').default(false).notNull(),
     preferredCurrency: text('preferred_currency').default('USD').notNull(),
+    isPremium: boolean('is_premium').default(false).notNull(),
     onboardingSteps: jsonb('onboarding_steps').default('[]').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -81,7 +91,7 @@ export const publications = pgTable(
     coverImageUrl: text('cover_image_url'),
     monthlyPriceUsdc: numeric('monthly_price_usdc', { precision: 12, scale: 6 }),
     freeTierEnabled: boolean('free_tier_enabled').default(true).notNull(),
-    payoutWallet: text('payout_wallet').notNull(),
+    payoutWallet: text('payout_wallet'),
     subscriberCount: integer('subscriber_count').default(0).notNull(),
     isPublished: boolean('is_published').default(false).notNull(),
     nftGateCollection: text('nft_gate_collection'),
@@ -181,6 +191,7 @@ export const emailSends = pgTable('email_sends', {
   sentAt: timestamp('sent_at').notNull(),
   openedAt: timestamp('opened_at'),
   status: emailStatusEnum('status').notNull(),
+  resendEmailId: text('resend_email_id'),
 });
 
 export const vaultEntries = pgTable('vault_entries', {
@@ -620,4 +631,59 @@ export type MigrationJob = typeof migrationJobs.$inferSelect;
 export type NewMigrationJob = typeof migrationJobs.$inferInsert;
 export type MigrationContact = typeof migrationContacts.$inferSelect;
 export type NewMigrationContact = typeof migrationContacts.$inferInsert;
+
+export const suppressions = pgTable('suppressions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  email: text('email').notNull().unique(),
+  reason: suppressionReasonEnum('reason').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const premiumUpgradePrompts = pgTable('premium_upgrade_prompts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  triggerEvent: upgradeTriggerEnum('trigger_event').notNull(),
+  shownAt: timestamp('shown_at').defaultNow().notNull(),
+  dismissedAt: timestamp('dismissed_at'),
+  convertedAt: timestamp('converted_at'),
+});
+
+export const premiumSubscriptions = pgTable('premium_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  creatorId: uuid('creator_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' })
+    .unique(),
+  status: premiumSubscriptionStatusEnum('status').notNull(),
+  startedAt: timestamp('started_at').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  lastTxSignature: text('last_tx_signature'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const premiumUpgradePromptsRelations = relations(premiumUpgradePrompts, ({ one }) => ({
+  user: one(users, {
+    fields: [premiumUpgradePrompts.userId],
+    references: [users.id],
+  }),
+}));
+
+export const premiumSubscriptionsRelations = relations(premiumSubscriptions, ({ one }) => ({
+  creator: one(users, {
+    fields: [premiumSubscriptions.creatorId],
+    references: [users.id],
+  }),
+}));
+
+export type Suppression = typeof suppressions.$inferSelect;
+export type NewSuppression = typeof suppressions.$inferInsert;
+
+export type PremiumUpgradePrompt = typeof premiumUpgradePrompts.$inferSelect;
+export type NewPremiumUpgradePrompt = typeof premiumUpgradePrompts.$inferInsert;
+
+export type PremiumSubscription = typeof premiumSubscriptions.$inferSelect;
+export type NewPremiumSubscription = typeof premiumSubscriptions.$inferInsert;
+
 

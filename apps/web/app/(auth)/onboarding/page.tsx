@@ -275,8 +275,6 @@ export default function OnboardingPage() {
     setLoading(true);
     setError(null);
 
-    const payoutAddress = activeWallet || 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'; // Fallback if no wallet
-
     try {
       const res = await fetch('/api/publications', {
         method: 'POST',
@@ -286,7 +284,8 @@ export default function OnboardingPage() {
           slug: pubSlug,
           description: pubDesc,
           monthlyPriceUsdc: isPaid ? parseFloat(pubPrice) : 0,
-          payoutWallet: payoutAddress,
+          // Only send payoutWallet if the user has a real wallet connected
+          ...(activeWallet ? { payoutWallet: activeWallet } : {}),
           freeTierEnabled: !isPaid,
         }),
       });

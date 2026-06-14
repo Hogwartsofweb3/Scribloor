@@ -96,8 +96,16 @@ export async function POST(request: NextRequest) {
     const result = PublicationSchema.safeParse(body);
 
     if (!result.success) {
+      const flattened = result.error.flatten();
+      // Build a user-readable message from field errors
+      const fieldMessages = Object.entries(flattened.fieldErrors)
+        .map(([field, msgs]) => `${field}: ${(msgs as string[]).join(', ')}`)
+        .join('; ');
       return NextResponse.json(
-        { error: 'Validation Failed', details: result.error.flatten() },
+        {
+          error: fieldMessages || 'Validation failed. Please check your inputs.',
+          details: flattened,
+        },
         { status: 400 }
       );
     }
@@ -119,12 +127,13 @@ export async function POST(request: NextRequest) {
 
     if (slugConflict) {
       return NextResponse.json(
-        { error: 'Slug Conflict', details: { fieldErrors: { slug: ['This URL slug is already taken.'] } } },
+        { error: 'That URL slug is already taken. Please choose another one.', details: { fieldErrors: { slug: ['This URL slug is already taken.'] } } },
         { status: 400 }
       );
     }
 
     // 6. Insert new publication
+    // payoutWallet is optional during onboarding; creators can update it in Settings later
     const [newPub] = await db
       .insert(publications)
       .values({
@@ -135,7 +144,7 @@ export async function POST(request: NextRequest) {
         coverImageUrl: coverImageUrl || null,
         monthlyPriceUsdc: monthlyPriceUsdc.toString(),
         freeTierEnabled: freeTierEnabled ?? true,
-        payoutWallet,
+        payoutWallet: payoutWallet || null,
         isPublished: true, // Active immediately on Wizard completion
       })
       .returning();
@@ -155,3 +164,4 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
+

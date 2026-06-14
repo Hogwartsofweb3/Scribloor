@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import { PublicKey } from '@solana/web3.js';
 
+const isValidSolanaWallet = (val: string) => {
+  try {
+    const key = new PublicKey(val);
+    return PublicKey.isOnCurve(key.toBuffer());
+  } catch {
+    return false;
+  }
+};
+
 export const PublicationSchema = z.object({
   name: z
     .string()
@@ -27,20 +36,23 @@ export const PublicationSchema = z.object({
       message: 'Price must be 0 (free) or at least 1 USDC.',
     }),
   freeTierEnabled: z.boolean().default(true),
-  payoutWallet: z.string().refine(
-    (val) => {
-      try {
-        // Must be a valid base58 public key that lies on the ed25519 curve
-        const key = new PublicKey(val);
-        return PublicKey.isOnCurve(key.toBuffer());
-      } catch {
-        return false;
-      }
-    },
-    {
-      message: 'Payout wallet must be a valid base58 Solana wallet address.',
-    }
-  ),
+  /**
+   * payoutWallet is required IF a paid price is set, but can be omitted or empty
+   * for free publications and during onboarding (before wallet is connected).
+   * If provided, it must be a valid base58 Solana address.
+   */
+  payoutWallet: z
+    .string()
+    .optional()
+    .nullable()
+    .refine(
+      (val) => {
+        // Allow empty / missing for free publications
+        if (!val || val.trim() === '') return true;
+        return isValidSolanaWallet(val);
+      },
+      { message: 'Payout wallet must be a valid base58 Solana wallet address.' }
+    ),
   coverImageUrl: z.string().url({ message: 'Must be a valid URL.' }).optional().or(z.literal('')),
   accentColor: z.string().default('amber'),
 });

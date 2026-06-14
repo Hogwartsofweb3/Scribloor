@@ -9,7 +9,7 @@ export const metadata = {
 };
 
 export default function TermsPage() {
-  const lastUpdated = 'May 26, 2026';
+  const lastUpdated = 'June 8, 2026';
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -179,6 +179,18 @@ export default function TermsPage() {
                 <li>Distributing malware, spam, or engaging in phishing attacks.</li>
                 <li>Bypassing content paywalls or attempting to hack the platform&apos;s API.</li>
                 <li>Violating any local or international compliance, anti-money laundering, or sanctions regulations.</li>
+                <li>
+                  Accessing or using the Platform if you are located in, ordinarily resident in, organized
+                  under the laws of, or controlled by a person in, any jurisdiction or country that is
+                  subject to a U.S. Government embargo or designated as a &quot;terrorist supporting&quot;
+                  country (including, without limitation, Cuba, Iran, North Korea, Syria, and the
+                  Crimea, Donetsk, and Luhansk regions of Ukraine).
+                </li>
+                <li>
+                  Transacting on behalf of any person or entity that is named on the U.S. Treasury
+                  Department&apos;s Specially Designated Nationals and Blocked Persons (SDN) list or any
+                  other applicable sanctions list.
+                </li>
               </ul>
             </section>
 
@@ -214,6 +226,46 @@ export default function TermsPage() {
                 <a href="mailto:legal@solscribe.app" className="text-indigo-600 hover:underline">
                   legal@solscribe.app
                 </a>.
+              </p>
+            </section>
+
+            <section className="space-y-4" id="section-16-sanctions">
+              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                <span className="text-indigo-600 text-lg font-mono">16.</span> OFAC Sanctions and Geographic Restrictions
+              </h2>
+              <p>
+                Solscribe complies with all applicable economic sanctions and export control laws,
+                including regulations administered by the U.S. Office of Foreign Assets Control
+                (&quot;OFAC&quot;). By accessing or using the Platform, you represent and warrant that:
+              </p>
+              <ul className="list-disc pl-5 space-y-2">
+                <li>
+                  You are not located in, ordinarily resident in, or acting on behalf of any person
+                  or entity in a country or territory subject to U.S. comprehensive economic sanctions
+                  (including Cuba, Iran, North Korea, Syria, and the Crimea, Donetsk, and Luhansk
+                  regions of Ukraine).
+                </li>
+                <li>
+                  You are not a Specially Designated National (SDN) or Blocked Person as defined
+                  by OFAC, or owned or controlled by such a person.
+                </li>
+                <li>
+                  You will not use the Platform, directly or indirectly, to circumvent any applicable
+                  sanctions or export control laws.
+                </li>
+              </ul>
+              <p>
+                If Solscribe has reason to believe that your use of the Platform violates any sanctions
+                or export control law, Solscribe may suspend or terminate your access immediately and
+                without notice, and may be required to report such activity to the relevant authorities.
+              </p>
+              <p>
+                If your subscription payment is declined due to geographic or sanctions restrictions,
+                please review our{' '}
+                <a href="/help/payment-restrictions" className="text-indigo-600 hover:underline">
+                  Payment Restrictions Help Page
+                </a>{' '}
+                for further information.
               </p>
             </section>
 

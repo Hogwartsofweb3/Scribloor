@@ -1,6 +1,5 @@
 import React from 'react';
 import PublicHeader from '@/components/layout/PublicHeader';
-import Footer from '@/components/layout/Footer';
 
 export default function PublicLayout({
   children,
@@ -13,7 +12,6 @@ export default function PublicLayout({
       <main className="flex-1 flex flex-col">
         {children}
       </main>
-      <Footer />
     </div>
   );
 }

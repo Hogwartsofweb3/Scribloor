@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
-import { db, posts, publications, subscriptions, emailSends } from '@solscribe/db';
-import { eq, and } from '@solscribe/db';
+import { db, posts, publications, subscriptions, emailSends, suppressions } from '@solscribe/db';
+import { eq, and, inArray } from '@solscribe/db';
 
 /**
  * sendPostToSubscribers
@@ -51,6 +51,27 @@ export async function sendPostToSubscribers(postId: string): Promise<{ sent: num
 
     if (targets.length === 0) {
       console.log(`[postDelivery] No active email subscribers found for publication ${pub.name}.`);
+      return { sent: 0, failed: 0 };
+    }
+
+    // 3b. Filter out suppressed addresses
+    const allEmails = targets.map((t) => t.subscriber.email!.toLowerCase().trim());
+    const suppressedRows = await db.query.suppressions.findMany({
+      where: inArray(suppressions.email, allEmails),
+    });
+    const suppressedSet = new Set(suppressedRows.map((s) => s.email));
+    const deliverableTargets = targets.filter(
+      (t) => !suppressedSet.has(t.subscriber.email!.toLowerCase().trim())
+    );
+
+    if (deliverableTargets.length < targets.length) {
+      console.log(
+        `[postDelivery] Suppressed ${targets.length - deliverableTargets.length} address(es) for publication ${pub.name}.`
+      );
+    }
+
+    if (deliverableTargets.length === 0) {
+      console.log(`[postDelivery] All subscribers suppressed for publication ${pub.name}. Skipping send.`);
       return { sent: 0, failed: 0 };
     }
 
@@ -151,8 +172,8 @@ export async function sendPostToSubscribers(postId: string): Promise<{ sent: num
     // 5. Partition subscriber targets into chunks of 100 (Resend Batch API limit)
     const batchSize = 100;
     const batches = [];
-    for (let i = 0; i < targets.length; i += batchSize) {
-      batches.push(targets.slice(i, i + batchSize));
+    for (let i = 0; i < deliverableTargets.length; i += batchSize) {
+      batches.push(deliverableTargets.slice(i, i + batchSize));
     }
 
     // 6. Dispatch emails in batches
@@ -167,12 +188,17 @@ export async function sendPostToSubscribers(postId: string): Promise<{ sent: num
       try {
         const response = await resend.batch.send(emailPayload);
         
-        // Log individual successful dispatches
-        const inserts = batch.map((target) => ({
+        // Log individual successful dispatches, storing Resend email IDs
+        const resendIds: (string | null)[] = (response.data ?? []).map(
+          (r: { id?: string }) => r?.id ?? null
+        );
+
+        const inserts = batch.map((target, idx) => ({
           postId: post.id,
           recipientId: target.subscriber.id,
           sentAt: new Date(),
           status: 'sent' as const,
+          resendEmailId: resendIds[idx] ?? null,
         }));
 
         await db.insert(emailSends).values(inserts);

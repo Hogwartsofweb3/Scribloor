@@ -151,8 +151,27 @@ export default function SubscribeModal() {
     if (err.includes('rejected') || err.includes('cancelled') || err.includes('declined') || err.includes('user cancel')) {
       return 'You cancelled the transaction in your wallet signature window.';
     }
+    if (
+      err.includes('sanction') ||
+      err.includes('ofac') ||
+      err.includes('geographic') ||
+      err.includes('restricted region') ||
+      err.includes('blocked region') ||
+      err.includes('embargoed')
+    ) {
+      return 'This payment could not be processed due to geographic or regulatory restrictions.';
+    }
     return paymentError;
   };
+
+  // Flag for rendering a help link on sanctions-related errors
+  const isSanctionsError = !!paymentError && (
+    paymentError.toLowerCase().includes('sanction') ||
+    paymentError.toLowerCase().includes('ofac') ||
+    paymentError.toLowerCase().includes('geographic') ||
+    paymentError.toLowerCase().includes('restricted region') ||
+    paymentError.toLowerCase().includes('embargoed')
+  );
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/90 backdrop-blur-sm p-4 sm:p-6 md:p-8 flex items-center justify-center select-none animate-in fade-in duration-300">
@@ -469,14 +488,28 @@ export default function SubscribeModal() {
                 <p className="text-xs text-zinc-500 mt-1 max-w-xs leading-normal">
                   {getTranslatedError()}
                 </p>
+                {isSanctionsError && (
+                  <a
+                    href="/help/payment-restrictions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-3 text-[10px] font-mono text-amber-400 hover:text-amber-300 transition"
+                  >
+                    <HelpCircle className="w-3 h-3" />
+                    View Payment Restrictions Help
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
               </div>
               <div className="flex flex-col gap-2 w-full mt-2">
-                <Button
-                  onClick={handlePay}
-                  className="w-full font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 h-11 rounded-xl shadow-lg shadow-amber-500/10"
-                >
-                  Try again
-                </Button>
+                {!isSanctionsError && (
+                  <Button
+                    onClick={handlePay}
+                    className="w-full font-bold bg-amber-500 hover:bg-amber-400 text-zinc-950 h-11 rounded-xl shadow-lg shadow-amber-500/10"
+                  >
+                    Try again
+                  </Button>
+                )}
                 <Button
                   onClick={handleRetry}
                   className="w-full font-bold bg-zinc-950 hover:bg-zinc-900 text-zinc-400 border border-zinc-900 h-11 rounded-xl"

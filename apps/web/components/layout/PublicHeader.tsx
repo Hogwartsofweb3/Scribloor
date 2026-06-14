@@ -37,7 +37,7 @@ const navItems = [
 
 export default function PublicHeader() {
   const pathname = usePathname();
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const { mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -108,19 +108,19 @@ export default function PublicHeader() {
                 </button>
               </Link>
             ) : (
-              <div className="hidden md:flex items-center gap-2">
-                <button
-                  onClick={login}
+            <div className="hidden md:flex items-center gap-2">
+                <Link
+                  href="/login"
                   className="px-4 py-2 rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
                 >
                   Sign in
-                </button>
-                <button
-                  onClick={login}
+                </Link>
+                <Link
+                  href="/login"
                   className="px-4 py-2 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white text-sm font-semibold transition-colors shadow-sm"
                 >
                   Start writing
-                </button>
+                </Link>
               </div>
             )}
 
@@ -170,24 +170,20 @@ export default function PublicHeader() {
                 </Link>
               ) : (
                 <>
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      login();
-                    }}
-                    className="w-full py-3 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[var(--color-text-primary)] font-bold text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-3 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] text-[var(--color-text-primary)] font-bold text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-center"
                   >
                     Sign in
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      login();
-                    }}
-                    className="w-full py-3 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white font-bold text-sm shadow transition-colors"
+                  </Link>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full py-3 rounded-[var(--radius-md)] bg-[var(--color-brand-500)] hover:bg-[var(--color-brand-600)] text-white font-bold text-sm shadow transition-colors text-center"
                   >
                     Start writing
-                  </button>
+                  </Link>
                 </>
               )}
             </div>
