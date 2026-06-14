@@ -32,6 +32,14 @@ export async function POST(req: NextRequest) {
 
     const recipientWallet = publication.payoutWallet;
 
+    // Guard: can't tip a publication that hasn't set a payout wallet
+    if (!recipientWallet) {
+      return NextResponse.json(
+        { error: 'This publication has not configured a payout wallet yet.' },
+        { status: 400 }
+      );
+    }
+
     // 2. Build Transaction
     const base64Tx = await buildTipTransaction({
       tipperWallet: user.walletAddress,
